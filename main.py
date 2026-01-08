@@ -173,6 +173,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 before_path = os.path.abspath(os.path.normpath(before_path_raw))
                 after_path = os.path.abspath(os.path.normpath(after_path_raw))
                 before_filename = os.path.basename(before_path)
+                after_filename = os.path.basename(after_path) # Define after_filename here
 
                 doc1, doc2, result_doc = None, None, None
                 try:
@@ -182,10 +183,12 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                     doc1 = word_app.Documents.Open(before_path)
                     doc1.Revisions.AcceptAll()
 
+                    self.log(f"'{after_filename}' 파일 여는 중 (변경 내용 적용)...") # New log message
+
                     doc2 = word_app.Documents.Open(after_path)
                     doc2.Revisions.AcceptAll()
 
-                    self.log(f"'{before_filename}' 파일 비교 중...")
+                    self.log(f"'{before_filename}'과 '{after_filename}' 파일 비교 중...") # Modify this line
                     
                     author_name = self.textEditauthor.toPlainText()
                     if not author_name.strip():
