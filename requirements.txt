@@ -1,5 +1,4 @@
 pyside6
 xlsxwriter
 pywin32; sys_platform == 'win32'
-diff-match-patch
 python-docx

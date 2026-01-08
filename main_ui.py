@@ -26,6 +26,9 @@ class Ui_MainWindow(object):
             MainWindow.setObjectName(u"MainWindow")
         MainWindow.resize(656, 497)
         MainWindow.setMinimumSize(QSize(532, 461))
+        icon = QIcon()
+        icon.addFile(u"logo.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        MainWindow.setWindowIcon(icon)
         MainWindow.setStyleSheet(u"* {\n"
 "font-family: \"Noto Sans\";\n"
 "font-size: 9pt;\n"

@@ -72,13 +72,13 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
                 _, _, end_i2, _, end_j2 = opcodes[i]
             
             # Now we have a merged block of changes from (start_i1, start_j1) to (end_i2, end_j2)
-            location_str = f"단락 {start_i1 + 1}~{end_i2}"
+            location_str = f"{start_i1 + 1}~{end_i2}줄"
 
             # --- Gather context and content for "Before" and "After" cells ---
             
             # Context before
-            context_start_i = max(0, start_i1 - 2)
-            context_start_j = max(0, start_j1 - 2)
+            context_start_i = max(0, start_i1 - 1)
+            context_start_j = max(0, start_j1 - 1)
             context_before_str_b = "\n".join(paras_before[context_start_i:start_i1])
             context_before_str_a = "\n".join(paras_after[context_start_j:start_j1])
 
@@ -87,8 +87,8 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
             content_a = " ".join(paras_after[start_j1:end_j2])
 
             # Context after
-            context_end_i = min(len(paras_before), end_i2 + 2)
-            context_end_j = min(len(paras_after), end_j2 + 2)
+            context_end_i = min(len(paras_before), end_i2 + 1)
+            context_end_j = min(len(paras_after), end_j2 + 1)
             context_after_str_b = "\n".join(paras_before[end_i2:context_end_i])
             context_after_str_a = "\n".join(paras_after[end_j2:context_end_j])
             

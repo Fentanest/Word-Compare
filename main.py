@@ -4,6 +4,17 @@ import os
 import shutil
 import tempfile
 import unicodedata
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 import xlsxwriter
 import win32com.client as win32
 
@@ -11,16 +22,16 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QListWidgetItem, QAbstractItemView
 )
 from PySide6.QtCore import Qt, QUrl, QEvent, QSettings
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon
 
 from main_ui import Ui_MainWindow
 from excel_generator import create_excel_report
-
 
 class WordCompareApp(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.setWindowIcon(QIcon(resource_path('logo.png')))
         self.setWindowTitle("Word Compare Tool")
         self.settings = QSettings("MyCompany", "WordCompareTool")
 
@@ -146,7 +157,6 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         word_app = None
         try:
             word_app = win32.gencache.EnsureDispatch("Word.Application")
-            word_app.AutomationSecurity = 1 # msoAutomationSecurityLow
             word_app.Visible = True
             word_app.DisplayAlerts = 0
 
@@ -164,13 +174,19 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 after_path = os.path.abspath(os.path.normpath(after_path_raw))
                 before_filename = os.path.basename(before_path)
 
+                doc1, doc2, result_doc = None, None, None
                 try:
+                    self.log(f"'{before_filename}' 파일 여는 중 (변경 내용 적용)...")
+
+                    # Open in R/W mode, accept revisions in memory, then compare
+                    doc1 = word_app.Documents.Open(before_path)
+                    doc1.Revisions.AcceptAll()
+
+                    doc2 = word_app.Documents.Open(after_path)
+                    doc2.Revisions.AcceptAll()
+
                     self.log(f"'{before_filename}' 파일 비교 중...")
                     
-                    doc1 = word_app.Documents.Open(before_path, ReadOnly=True, OpenAndRepair=True)
-                    doc2 = word_app.Documents.Open(after_path, ReadOnly=True, OpenAndRepair=True)
-
-                    # 사용자 지정 author 이름 사용
                     author_name = self.textEditauthor.toPlainText()
                     if not author_name.strip():
                         author_name = "Administrator"
@@ -184,9 +200,6 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                         RevisedAuthor=author_name
                     )
                     
-                    doc1.Close(SaveChanges=False)
-                    doc2.Close(SaveChanges=False)
-
                     result_filename = f"비교_결과_{before_filename}"
                     result_save_path = os.path.join(save_dir, result_filename)
                     result_doc.SaveAs(os.path.abspath(result_save_path))
@@ -200,10 +213,13 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                         except Exception as e:
                             self.log(f"-> Excel 보고서 생성 중 오류 발생: {e}")
                     
-                    result_doc.Close(SaveChanges=False)
-
                 except Exception as e:
                     self.log(f"'{before_filename}' 비교 중 오류 발생: {e}")
+                finally:
+                    # Close original documents without saving changes
+                    if doc1: doc1.Close(SaveChanges=False)
+                    if doc2: doc2.Close(SaveChanges=False)
+                    if result_doc: result_doc.Close(SaveChanges=False)
 
         except Exception as e:
             self.log(f"오류: Microsoft Word 처리 중 문제가 발생했습니다. ({e})")
