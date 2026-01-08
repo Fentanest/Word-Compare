@@ -6,7 +6,6 @@ import tempfile
 import unicodedata
 import xlsxwriter
 import win32com.client as win32
-import re
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QListWidgetItem, QAbstractItemView
@@ -15,24 +14,8 @@ from PySide6.QtCore import Qt, QUrl, QEvent, QSettings
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 
 from main_ui import Ui_MainWindow
+from excel_generator import create_excel_report
 
-class KoreanCleaner:
-    @classmethod
-    def _normalize_numbers(cls, text):
-        # Implement number normalization logic here if provided
-        return text
-
-    @classmethod
-    def _normalize_english_text(cls, text):
-        # Implement English text normalization logic here if provided
-        return text
-
-    @classmethod
-    def normalize_text(cls, text):
-        text = text.strip()
-        text = cls._normalize_numbers(text)
-        text = cls._normalize_english_text(text)
-        return text
 
 class WordCompareApp(QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -209,7 +192,12 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                     self.log(f"-> '비교 결과 문서' 저장: {result_save_path}")
 
                     if self.checkBoxExcel.isChecked():
-                        self.create_excel_report(result_doc, before_filename, save_dir)
+                        excel_filename = f"변경내용_{os.path.splitext(before_filename)[0]}.xlsx"
+                        excel_save_path = os.path.join(save_dir, excel_filename)
+                        try:
+                            create_excel_report(before_path, after_path, excel_save_path, self.log)
+                        except Exception as e:
+                            self.log(f"-> Excel 보고서 생성 중 오류 발생: {e}")
                     
                     result_doc.Close(SaveChanges=False)
 
@@ -224,77 +212,6 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 word_app.Quit(SaveChanges=False)
         
         self.log("모든 비교 작업을 완료했습니다.")
-
-
-    def _sanitize_text(self, text):
-        if not isinstance(text, str):
-            return ""
-        # Simply remove carriage returns and strip whitespace
-        return text.replace('\r', '').strip()
-
-    def create_excel_report(self, doc, original_filename, save_dir):
-        excel_filename = f"변경내용_{os.path.splitext(original_filename)[0]}.xlsx"
-        excel_save_path = os.path.join(save_dir, excel_filename)
-        self.log(f"-> Excel 보고서 생성 중 (빠른 모드)...")
-
-        try:
-            workbook = xlsxwriter.Workbook(excel_save_path)
-            worksheet = workbook.add_worksheet("변경 내용")
-
-            # 서식 정의
-            header_format = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter'})
-            deleted_format = workbook.add_format({'font_color': 'blue', 'font_strikeout': True})
-            inserted_format = workbook.add_format({'font_color': 'red', 'bold': True})
-            
-            # 헤더 설정
-            worksheet.write('A1', '위치', header_format)
-            worksheet.write('B1', '수정 전', header_format)
-            worksheet.write('C1', '수정 후', header_format)
-            worksheet.set_column('A:A', 15)
-            worksheet.set_column('B:B', 50)
-            worksheet.set_column('C:C', 50)
-            worksheet.freeze_panes(1, 0)
-            
-            row = 1
-            
-            revisions = doc.Revisions
-            if revisions.Count == 0:
-                self.log("텍스트 변경 사항이 없어 Excel 보고서를 생성하지 않습니다.")
-                workbook.close()
-                os.remove(excel_save_path) # 빈 엑셀 파일 삭제
-                return
-
-            self.log(f"총 {revisions.Count}개의 변경점을 처리합니다.")
-            
-            # 문서의 모든 변경 사항을 직접 순회 (가장 빠름)
-            for i, rev in enumerate(revisions):
-                if (i + 1) % 10 == 0:
-                    self.log(f"변경점 처리 중... ({i + 1}/{revisions.Count})")
-
-                # 텍스트 변경(삽입, 삭제)만 처리
-                if rev.Type == 1 or rev.Type == 2:
-                    page = rev.Range.Information(3)
-                    line = rev.Range.Information(10)
-                    location_str = f"Page {page}, Line {line}"
-                    
-                    worksheet.write(row, 0, location_str)
-
-                    sanitized_text = self._sanitize_text(rev.Range.Text)
-                    normalized_text = KoreanCleaner.normalize_text(sanitized_text)
-
-                    if rev.Type == 1:  # 삽입
-                        worksheet.write(row, 2, normalized_text, inserted_format)
-                    elif rev.Type == 2:  # 삭제
-                        worksheet.write(row, 1, normalized_text, deleted_format)
-                    
-                    row += 1
-
-            workbook.close()
-            self.log(f"-> Excel 보고서 저장: {excel_save_path}")
-        except Exception as e:
-            import traceback
-            self.log(f"-> Excel 저장 실패: {e}")
-            self.log(traceback.format_exc())
 
 
 if __name__ == '__main__':
