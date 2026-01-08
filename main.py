@@ -146,6 +146,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         word_app = None
         try:
             word_app = win32.gencache.EnsureDispatch("Word.Application")
+            word_app.AutomationSecurity = 1 # msoAutomationSecurityLow
             word_app.Visible = True
             word_app.DisplayAlerts = 0
 
@@ -166,8 +167,8 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 try:
                     self.log(f"'{before_filename}' 파일 비교 중...")
                     
-                    doc1 = word_app.Documents.Open(before_path, ReadOnly=True)
-                    doc2 = word_app.Documents.Open(after_path, ReadOnly=True)
+                    doc1 = word_app.Documents.Open(before_path, ReadOnly=True, OpenAndRepair=True)
+                    doc2 = word_app.Documents.Open(after_path, ReadOnly=True, OpenAndRepair=True)
 
                     # 사용자 지정 author 이름 사용
                     author_name = self.textEditauthor.toPlainText()

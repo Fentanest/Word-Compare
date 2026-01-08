@@ -44,9 +44,9 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
     worksheet.write('A1', '위치', header_format)
     worksheet.write('B1', '수정 전', header_format)
     worksheet.write('C1', '수정 후', header_format)
-    worksheet.set_column('A:A', 15)
-    worksheet.set_column('B:B', 60)
-    worksheet.set_column('C:C', 60)
+    worksheet.set_column('A:A', 15, default_format)
+    worksheet.set_column('B:B', 60, default_format)
+    worksheet.set_column('C:C', 60, default_format)
     worksheet.freeze_panes(1, 0)
     
     excel_row = 1
