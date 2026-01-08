@@ -16,11 +16,13 @@ jobs:
       with:
         python-version: '3.14'
 
-    - name: Install Python dependencies
+    - name: Create and populate virtual environment
+      shell: powershell
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller  # main.spec 사용 시 필요할 수 있음
+        python -m venv venv
+        .\venv\Scripts\python.exe -m pip install --upgrade pip
+        .\venv\Scripts\pip.exe install -r requirements.txt
+        .\venv\Scripts\pip.exe install pyinstaller
 
     - name: Setup UPX 5.1.0
       id: setup_upx
@@ -55,7 +57,8 @@ jobs:
         & "${{ steps.setup_upx.outputs.upx_path }}" --version
 
     - name: Build executable with PyInstaller
-      run: pyinstaller main.spec
+      shell: powershell
+      run: .\venv\Scripts\pyinstaller.exe main.spec
 
     - name: Compress executable with UPX
       shell: powershell
