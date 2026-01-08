@@ -22,11 +22,34 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller  # main.spec 사용 시 필요할 수 있음
 
-    - name: Set up UPX for compression
-      uses: crazy-max/ghaction-upx@v3
-      with:
-        version: 'latest'
-        install-only: true
+    - name: Setup UPX 5.1.0 (check first, install if missing)
+      shell: powershell
+      run: |
+        $version = "5.1.0"
+        $upxPath = "${env:TEMP}\upx\upx.exe"
+        $zipPath = "${env:TEMP}\upx-${version}-win64.zip"
+        $extractPath = "${env:TEMP}\upx"
+        $downloadUrl = "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-win64.zip"
+        
+        # 1. 기존 UPX 확인
+        if (Test-Path $upxPath) {
+          Write-Output "UPX already exists at $upxPath"
+          & $upxPath --version
+        } else {
+          # 2. 다운로드
+          Write-Output "Downloading UPX $version from $downloadUrl"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+          
+          # 3. 압축 해제
+          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+          
+          # 4. PATH 추가
+          echo $upxPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Output "UPX $version installed successfully"
+        }
+
+    - name: Verify UPX version
+      run: upx --version
 
     - name: Build executable with PyInstaller
       run: pyinstaller main.spec
