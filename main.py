@@ -157,7 +157,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         word_app = None
         try:
             word_app = win32.gencache.EnsureDispatch("Word.Application")
-            word_app.Visible = True
+            word_app.Visible = False
             word_app.DisplayAlerts = 0
 
             for i in range(before_count):
