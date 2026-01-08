@@ -67,7 +67,7 @@ jobs:
       shell: powershell
       run: |
         Write-Output "Compressing with UPX: ${{ steps.setup_upx.outputs.upx_path }}"
-        & "${{ steps.setup_upx.outputs.upx_path }}" --best --lzma dist/WordCompare.exe
+        & "${{ steps.setup_upx.outputs.upx_path }}" --best --lzma --force dist/WordCompare.exe
 
     - name: Upload executable as an artifact
       uses: actions/upload-artifact@v4
