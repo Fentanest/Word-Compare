@@ -80,39 +80,39 @@ jobs:
         name: WordCompare-Windows
         path: dist/WordCompare.exe
 
-  release:
-    needs: build-windows
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # Needed to push tags and create releases
+  # release:
+  #   needs: build-windows
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: write # Needed to push tags and create releases
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetches all history for all branches and tags
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0 # Fetches all history for all branches and tags
 
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: WordCompare-Windows
-          path: dist
+  #     - name: Download build artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: WordCompare-Windows
+  #         path: dist
 
-      - name: Bump version and push tag
-        id: tag_version
-        uses: anothrNick/github-tag-action@1.67.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: minor # v0.1.0 -> v0.2.0
-          initial_version: v0.1.0
-          release_branches: main
+  #     - name: Bump version and push tag
+  #       id: tag_version
+  #       uses: anothrNick/github-tag-action@1.67.0
+  #       with:
+  #         github_token: ${{ secrets.GITHUB_TOKEN }}
+  #         default_bump: minor # v0.1.0 -> v0.2.0
+  #         initial_version: v0.1.0
+  #         release_branches: main
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          name: "Word Compare Tool ${{ steps.tag_version.outputs.new_tag }}"
-          body: |
-            Automated release of the Word Compare Tool.
-            The attached executable file (`WordCompare.exe`) is compressed with UPX.
-          files: dist/WordCompare.exe
+  #     - name: Create GitHub Release
+  #       uses: softprops/action-gh-release@v1
+  #       with:
+  #         tag_name: ${{ steps.tag_version.outputs.new_tag }}
+  #         name: "Word Compare Tool ${{ steps.tag_version.outputs.new_tag }}"
+  #         body: |
+  #           Automated release of the Word Compare Tool.
+  #           The attached executable file (`WordCompare.exe`) is compressed with UPX.
+  #         files: dist/WordCompare.exe
