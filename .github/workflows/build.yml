@@ -26,8 +26,9 @@ jobs:
       shell: powershell
       run: |
         $version = "5.1.0"
-        $upxDir = "${env:TEMP}\upx"
-        $upxPath = "${upxDir}\upx.exe"
+        $upxExtractDir = "${env:TEMP}\upx"
+        $upxDir = Join-Path $upxExtractDir "upx-${version}-win64"
+        $upxPath = Join-Path $upxDir "upx.exe"
         $zipPath = "${env:TEMP}\upx-${version}-win64.zip"
         $downloadUrl = "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-win64.zip"
     
@@ -36,17 +37,21 @@ jobs:
           Write-Output "UPX already exists at $upxPath"
           & $upxPath --version
         } else {
+          # 이전 추출 폴더 정리
+          if (Test-Path $upxExtractDir) {
+            Remove-Item -Recurse -Force $upxExtractDir
+          }
           # 2. 다운로드
           Write-Output "Downloading UPX $version from $downloadUrl"
           Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
           
           # 3. 압축 해제
-          Expand-Archive -Path $zipPath -DestinationPath $upxDir -Force
+          Expand-Archive -Path $zipPath -DestinationPath $upxExtractDir -Force
           
-          # 4. PATH 추가 (디렉토리 경로로 수정)
+          # 4. PATH 추가 (실제 upx.exe가 있는 디렉토리 경로로 수정)
           echo "$upxDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           $env:PATH += ";$upxDir"
-          Write-Output "UPX $version installed successfully at $upxDir"
+          Write-Output "UPX $version installed successfully. Path added: $upxDir"
         }
         
         # 5. 즉시 테스트 (필수)
