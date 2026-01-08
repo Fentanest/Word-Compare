@@ -35,10 +35,10 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
     worksheet = workbook.add_worksheet("변경 내용")
 
     # Formats
-    header_format = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
-    deleted_format = workbook.add_format({'font_color': 'blue', 'font_strikeout': True, 'valign': 'vcenter'})
-    inserted_format = workbook.add_format({'font_color': 'red', 'bold': True, 'valign': 'vcenter'})
-    default_format = workbook.add_format({'valign': 'vcenter'})
+    header_format = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'border': 1, 'text_wrap': True})
+    deleted_format = workbook.add_format({'font_color': 'blue', 'font_strikeout': True, 'valign': 'vcenter', 'text_wrap': True})
+    inserted_format = workbook.add_format({'font_color': 'red', 'bold': True, 'valign': 'vcenter', 'text_wrap': True})
+    default_format = workbook.add_format({'valign': 'vcenter', 'text_wrap': True})
 
     # Setup header
     worksheet.write('A1', '위치', header_format)
