@@ -131,7 +131,7 @@ jobs:
         name: WordCompare-Windows-${{ steps.get_version.outputs.version }}
         path: dist/WordCompare.exe
 
-    - name: Create GitHub Release (자동 태그 생성)
+    - name: Create GitHub Release (only if new version)
       if: steps.check_tag.outputs.tag_exists == 'false'
       uses: softprops/action-gh-release@v2
       with:

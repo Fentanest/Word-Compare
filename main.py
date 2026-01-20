@@ -152,7 +152,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
     def sort_list_views(self):
         self._sort_model(self.model_before)
         self._sort_model(self.model_after)
-        self.log("리스트를 파일 이름으로 내림차순 정렬했습니다.")
+        self.log("리스트를 파일 이름으로 오름차순 정렬했습니다.")
 
     def _sort_model(self, model):
         # Extract items, sort them, and re-populate the model
