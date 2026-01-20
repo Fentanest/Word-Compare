@@ -5,43 +5,22 @@ on:
   push:
     branches:
       - main
-    tags:                # <- 추가
-      - 'v*'
 
 jobs:
   build-and-release-windows:
     runs-on: [self-hosted, Windows, X64, 230]
     permissions:
-      contents: write # Needed to create releases
+      contents: write
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 전체 히스토리 필요 (tag 확인용)
+        fetch-depth: 0 
 
-    # - name: Build executable with PyInstaller
-    #   shell: powershell
-    #   run: .\venv\Scripts\pyinstaller.exe main.spec
-
-    # - name: Compress executable with UPX
-    #   shell: powershell
-    #   run: |
-    #     Write-Output "Compressing with UPX: ${{ steps.setup_upx.outputs.upx_path }}"
-    #     & "${{ steps.setup_upx.outputs.upx_path }}" --best --lzma --force dist/WordCompare.exe
-
-    # - name: Upload executable as an artifact
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: WordCompare-Windows
-    #     path: dist/WordCompare.exe
-        
     - name: Get version from version.py
       id: get_version
       shell: powershell
-      # run: |
-      #   $versionString = (Get-Content version.py) -match '__version__ = "(.+)"' | ForEach-Object { $matches[1] }
-      #   echo "VERSION=$versionString" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append 
       run: |
         $versionString = (Get-Content version.py -Raw) -match '__version__ = "(.+)"' | ForEach-Object { $matches[1] }
         if (-not $versionString) {
@@ -152,33 +131,15 @@ jobs:
         name: WordCompare-Windows-${{ steps.get_version.outputs.version }}
         path: dist/WordCompare.exe
 
-    - name: Create tag (only if new version)
+    - name: Create Tag & Release with GitHub CLI
       if: steps.check_tag.outputs.tag_exists == 'false'
       shell: powershell
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG_NAME: ${{ steps.get_version.outputs.tag }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        git config --global user.email "action@github.com"
-        git config --global user.name "GitHub Actions"
-        git tag $env:TAG_NAME
-        git push origin $env:TAG_NAME
-        Write-Output "Created and pushed tag: $env:TAG_NAME"
-
-    - name: Create GitHub Release (only if new version)
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.get_version.outputs.tag }}
-        name: "Word Compare Tool ${{ steps.get_version.outputs.version }}"
-        body: |
-          Automated release of **Word Compare Tool v${{ steps.get_version.outputs.version }}**.
-          
-          **Changes:**
-          - Built with Python 3.14
-          - Compressed with UPX 5.1.0
-          - Commit: ${{ github.sha }}
-        files: dist/WordCompare.exe
-        draft: false
-        prerelease: false
-        generate_release_notes: true
+        winget install --id GitHub.cli --source winget --silent --accept-package-agreements --accept-source-agreements
+        gh release create "${{ steps.get_version.outputs.tag }}" `
+          --title "Word Compare Tool ${{ steps.get_version.outputs.version }}" `
+          --notes "Auto release v${{ steps.get_version.outputs.version }}          
+          Python 3.14 | UPX 5.1.0 | SHA: ${{ github.sha }}" `
+          dist/WordCompare.exe
