@@ -34,7 +34,7 @@ jobs:
         .\venv\Scripts\pip.exe install -r requirements.txt
         .\venv\Scripts\pip.exe install pyinstaller
 
-    - name: Setup UPX
+    - name: Setup UPX 5.1.0
       id: setup_upx
       shell: powershell
       run: |
