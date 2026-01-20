@@ -124,12 +124,12 @@ jobs:
         Write-Output "Compressing with UPX: ${{ steps.setup_upx.outputs.upx_path }}"
         & "${{ steps.setup_upx.outputs.upx_path }}" --best --lzma --force dist/WordCompare.exe
 
-    # - name: Upload executable as an artifact (only if new version)
-    #   if: steps.check_tag.outputs.tag_exists == 'false'
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: WordCompare-Windows-${{ steps.get_version.outputs.version }}
-    #     path: dist/WordCompare.exe
+    - name: Upload executable as an artifact (only if new version)
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      uses: actions/upload-artifact@v4
+      with:
+        name: WordCompare-Windows-${{ steps.get_version.outputs.version }}
+        path: dist/WordCompare.exe
 
     - name: Create GitHub Release (자동 태그 생성)
       if: steps.check_tag.outputs.tag_exists == 'false'
