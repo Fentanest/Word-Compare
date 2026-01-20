@@ -124,22 +124,23 @@ jobs:
         Write-Output "Compressing with UPX: ${{ steps.setup_upx.outputs.upx_path }}"
         & "${{ steps.setup_upx.outputs.upx_path }}" --best --lzma --force dist/WordCompare.exe
 
-    - name: Upload executable as an artifact (only if new version)
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      uses: actions/upload-artifact@v4
-      with:
-        name: WordCompare-Windows-${{ steps.get_version.outputs.version }}
-        path: dist/WordCompare.exe
+    # - name: Upload executable as an artifact (only if new version)
+    #   if: steps.check_tag.outputs.tag_exists == 'false'
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: WordCompare-Windows-${{ steps.get_version.outputs.version }}
+    #     path: dist/WordCompare.exe
 
-    - name: Create Tag & Release with GitHub CLI
+    - name: Create GitHub Release (자동 태그 생성)
       if: steps.check_tag.outputs.tag_exists == 'false'
-      shell: powershell
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        winget install --id GitHub.cli --source winget --silent --accept-package-agreements --accept-source-agreements
-        gh release create "${{ steps.get_version.outputs.tag }}" `
-          --title "Word Compare Tool ${{ steps.get_version.outputs.version }}" `
-          --notes "Auto release v${{ steps.get_version.outputs.version }}          
-          Python 3.14 | UPX 5.1.0 | SHA: ${{ github.sha }}" `
-          dist/WordCompare.exe
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ steps.get_version.outputs.version }}
+        name: "Word Compare Tool v${{ steps.get_version.outputs.version }}"
+        body: |
+          Automated release of Word Compare Tool v${{ steps.get_version.outputs.version }}.
+          Commit: ${{ github.sha }}
+        files: dist/WordCompare.exe
+        draft: false
+        prerelease: false
+        generate_release_notes: true
