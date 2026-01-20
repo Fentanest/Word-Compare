@@ -7,8 +7,10 @@ on:
       - main
 
 jobs:
-  build-windows:
+  build-and-release-windows:
     runs-on: [self-hosted, Windows, X64, 230]
+    permissions:
+      contents: write # Needed to create releases
 
     steps:
     - name: Checkout repository
@@ -22,7 +24,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.14'
+        python-version: '3.11'
 
     - name: Create and populate virtual environment
       shell: powershell
@@ -32,7 +34,7 @@ jobs:
         .\venv\Scripts\pip.exe install -r requirements.txt
         .\venv\Scripts\pip.exe install pyinstaller
 
-    - name: Setup UPX 5.1.0
+    - name: Setup UPX
       id: setup_upx
       shell: powershell
       run: |
@@ -79,40 +81,23 @@ jobs:
       with:
         name: WordCompare-Windows
         path: dist/WordCompare.exe
+        
+    - name: Get version from version.py
+      id: get_version
+      shell: powershell
+      run: |
+        $versionString = (Get-Content version.py) -match '__version__ = "(.+)"' | ForEach-Object { $matches[1] }
+        echo "VERSION=$versionString" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-  # release:
-  #   needs: build-windows
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: write # Needed to push tags and create releases
-
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0 # Fetches all history for all branches and tags
-
-  #     - name: Download build artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: WordCompare-Windows
-  #         path: dist
-
-  #     - name: Bump version and push tag
-  #       id: tag_version
-  #       uses: anothrNick/github-tag-action@1.67.0
-  #       with:
-  #         github_token: ${{ secrets.GITHUB_TOKEN }}
-  #         default_bump: minor # v0.1.0 -> v0.2.0
-  #         initial_version: v0.1.0
-  #         release_branches: main
-
-  #     - name: Create GitHub Release
-  #       uses: softprops/action-gh-release@v1
-  #       with:
-  #         tag_name: ${{ steps.tag_version.outputs.new_tag }}
-  #         name: "Word Compare Tool ${{ steps.tag_version.outputs.new_tag }}"
-  #         body: |
-  #           Automated release of the Word Compare Tool.
-  #           The attached executable file (`WordCompare.exe`) is compressed with UPX.
-  #         files: dist/WordCompare.exe
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.get_version.outputs.VERSION }}
+        name: "Word Compare Tool v${{ steps.get_version.outputs.VERSION }}"
+        body: |
+          Automated release of the Word Compare Tool.
+          The attached executable file (`WordCompare.exe`) is compressed with UPX.
+        files: dist/WordCompare.exe
+        draft: false
+        prerelease: false
