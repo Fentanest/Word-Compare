@@ -11,14 +11,15 @@
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
     QMetaObject, QObject, QPoint, QRect,
     QSize, QTime, QUrl, Qt)
-from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
-    QFont, QFontDatabase, QGradient, QIcon,
-    QImage, QKeySequence, QLinearGradient, QPainter,
-    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
+    QCursor, QFont, QFontDatabase, QGradient,
+    QIcon, QImage, QKeySequence, QLinearGradient,
+    QPainter, QPalette, QPixmap, QRadialGradient,
+    QTransform)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QGroupBox,
     QHBoxLayout, QLineEdit, QListView, QMainWindow,
-    QMenuBar, QPushButton, QSizePolicy, QStatusBar,
-    QTextBrowser, QTextEdit, QWidget)
+    QMenu, QMenuBar, QPushButton, QSizePolicy,
+    QStatusBar, QTextBrowser, QTextEdit, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -53,6 +54,12 @@ class Ui_MainWindow(object):
 "background-color: black;\n"
 "border: 2px solid white;\n"
 "}")
+        self.actionSorting = QAction(MainWindow)
+        self.actionSorting.setObjectName(u"actionSorting")
+        self.actionGithub = QAction(MainWindow)
+        self.actionGithub.setObjectName(u"actionGithub")
+        self.actionBlog = QAction(MainWindow)
+        self.actionBlog.setObjectName(u"actionBlog")
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.grpSavePath = QGroupBox(self.centralwidget)
@@ -120,13 +127,23 @@ class Ui_MainWindow(object):
         self.textEditauthor.setObjectName(u"textEditauthor")
         self.textEditauthor.setGeometry(QRect(10, 30, 120, 26))
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QMenuBar(MainWindow)
-        self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 644, 23))
-        MainWindow.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
         MainWindow.setStatusBar(self.statusbar)
+        self.menubar = QMenuBar(MainWindow)
+        self.menubar.setObjectName(u"menubar")
+        self.menubar.setGeometry(QRect(0, 0, 644, 23))
+        self.menuOption = QMenu(self.menubar)
+        self.menuOption.setObjectName(u"menuOption")
+        self.menuMade_by_Fentanest = QMenu(self.menubar)
+        self.menuMade_by_Fentanest.setObjectName(u"menuMade_by_Fentanest")
+        MainWindow.setMenuBar(self.menubar)
+
+        self.menubar.addAction(self.menuOption.menuAction())
+        self.menubar.addAction(self.menuMade_by_Fentanest.menuAction())
+        self.menuOption.addAction(self.actionSorting)
+        self.menuOption.addAction(self.actionGithub)
+        self.menuOption.addAction(self.actionBlog)
 
         self.retranslateUi(MainWindow)
 
@@ -135,6 +152,18 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
+        self.actionSorting.setText(QCoreApplication.translate("MainWindow", u"\ud30c\uc77c \uc815\ub82c(F4)", None))
+#if QT_CONFIG(shortcut)
+        self.actionSorting.setShortcut(QCoreApplication.translate("MainWindow", u"F4", None))
+#endif // QT_CONFIG(shortcut)
+        self.actionGithub.setText(QCoreApplication.translate("MainWindow", u"Github Repository", None))
+#if QT_CONFIG(shortcut)
+        self.actionGithub.setShortcut(QCoreApplication.translate("MainWindow", u"F2", None))
+#endif // QT_CONFIG(shortcut)
+        self.actionBlog.setText(QCoreApplication.translate("MainWindow", u"\uc81c\uc791\uc790 \ube14\ub85c\uadf8", None))
+#if QT_CONFIG(shortcut)
+        self.actionBlog.setShortcut(QCoreApplication.translate("MainWindow", u"F1", None))
+#endif // QT_CONFIG(shortcut)
         self.grpSavePath.setTitle(QCoreApplication.translate("MainWindow", u"\uc800\uc7a5 \uc704\uce58", None))
         self.btnBrowsePath.setText(QCoreApplication.translate("MainWindow", u"\uacbd\ub85c \uc9c0\uc815", None))
 #if QT_CONFIG(shortcut)
@@ -155,5 +184,7 @@ class Ui_MainWindow(object):
         self.checkBoxExcel.setShortcut(QCoreApplication.translate("MainWindow", u"E", None))
 #endif // QT_CONFIG(shortcut)
         self.textEditauthor.setPlaceholderText(QCoreApplication.translate("MainWindow", u"\uc791\uc5c5\uc790\uba85", None))
+        self.menuOption.setTitle(QCoreApplication.translate("MainWindow", u"\uc635\uc158", None))
+        self.menuMade_by_Fentanest.setTitle(QCoreApplication.translate("MainWindow", u"Made by Fentanest", None))
     # retranslateUi
 

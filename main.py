@@ -1,4 +1,3 @@
-
 import sys
 import os
 import shutil
@@ -15,6 +14,8 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
+from version import __version__
+
 import xlsxwriter
 import win32com.client as win32
 
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QListWidgetItem, QAbstractItemView
 )
 from PySide6.QtCore import Qt, QUrl, QEvent, QSettings
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon
+from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices, QAction
 
 from main_ui import Ui_MainWindow
 from excel_generator import create_excel_report
@@ -32,7 +33,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         super().__init__()
         self.setupUi(self)
         self.setWindowIcon(QIcon(resource_path('logo.png')))
-        self.setWindowTitle("Word Compare Tool")
+        self.setWindowTitle(f"Word Compare Tool v{__version__}")
         self.settings = QSettings("MyCompany", "WordCompareTool")
 
         # 1. 모델 생성 및 리스트뷰에 설정
@@ -61,14 +62,22 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.listViewbefore.installEventFilter(self)
         self.listViewafter.installEventFilter(self)
 
+        # 6. Action 연결
+        self.actionGithub.triggered.connect(self.open_github_link)
+        self.actionBlog.triggered.connect(self.open_blog_link)
+        self.actionSorting.triggered.connect(self.sort_list_views)
+
+        # 7. 'Made by Fentanest' 메뉴에 버전 정보 Action 추가
+        version_action = QAction(f"Version: {__version__}", self)
+        version_action.setEnabled(False) # Make it unclickable
+        self.menuMade_by_Fentanest.addAction(version_action)
+
     def load_initial_path(self):
         saved_path = self.settings.value("savePath", "")
         if saved_path and os.path.isdir(saved_path):
             self.lineEditSavePath.setText(saved_path)
         else:
             self.lineEditSavePath.setText(os.path.join(os.path.expanduser("~"), "Desktop"))
-
-
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Delete:
@@ -131,6 +140,38 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.txtLogOutput.append(message)
         QApplication.processEvents()
 
+    def open_github_link(self):
+        github_url = "https://github.com/Fentanest/Word-Compare"
+        QDesktopServices.openUrl(QUrl(github_url))
+
+    def open_blog_link(self):
+        blog_url = "https://hb.worklazy.net/word-compare" # Placeholder: Please update with your actual blog link
+        QDesktopServices.openUrl(QUrl(blog_url))
+        self.log("블로그 링크를 열었습니다.")
+
+    def sort_list_views(self):
+        self._sort_model(self.model_before)
+        self._sort_model(self.model_after)
+        self.log("리스트를 파일 이름으로 내림차순 정렬했습니다.")
+
+    def _sort_model(self, model):
+        # Extract items, sort them, and re-populate the model
+        items = []
+        for row in range(model.rowCount()):
+            item = model.item(row)
+            items.append((item.text(), item.data(Qt.UserRole))) # Store (filename, path)
+
+        # Sort in ascending order by filename
+        items.sort(key=lambda x: x[0], reverse=False)
+
+        # Clear existing model and add sorted items
+        model.clear()
+        for text, user_role_data in items:
+            item = QStandardItem(text)
+            item.setData(user_role_data, Qt.UserRole)
+            item.setFlags(item.flags() & ~Qt.ItemIsDropEnabled)
+            model.appendRow(item)
+
     def start_compare(self):
         before_count = self.model_before.rowCount()
         after_count = self.model_after.rowCount()
@@ -155,80 +196,98 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.log("비교 작업을 시작합니다...")
         
         word_app = None
+        
         try:
             word_app = win32.gencache.EnsureDispatch("Word.Application")
             word_app.Visible = False
             word_app.DisplayAlerts = 0
-
+            # word_app.AutomationSecurity = 3 # Removed as IgnoreAllComparisonWarnings should be sufficient
+            
             for i in range(before_count):
                 before_item = self.model_before.item(i)
                 after_item = self.model_after.item(i)
                 
-                before_path_raw = before_item.data(Qt.UserRole)
-                after_path_raw = after_item.data(Qt.UserRole)
-
-                if not before_path_raw: before_path_raw = before_item.text()
-                if not after_path_raw: after_path_raw = after_item.text()
-
-                before_path = os.path.abspath(os.path.normpath(before_path_raw))
-                after_path = os.path.abspath(os.path.normpath(after_path_raw))
-                before_filename = os.path.basename(before_path)
-                after_filename = os.path.basename(after_path) # Define after_filename here
-
+                original_before_path = os.path.abspath(before_item.data(Qt.UserRole))
+                original_after_path = os.path.abspath(after_item.data(Qt.UserRole))
+                original_filename = os.path.basename(original_after_path)
+                
                 doc1, doc2, result_doc = None, None, None
+                excel_temp_before_path = None
+                excel_temp_after_path = None
+
                 try:
-                    self.log(f"'{before_filename}' 파일 여는 중 (변경 내용 적용)...")
+                    self.log(f"'{original_filename}' 파일 처리 중...")
 
-                    # Open in R/W mode, accept revisions in memory, then compare
-                    doc1 = word_app.Documents.Open(before_path)
-                    doc1.Revisions.AcceptAll()
-
-                    self.log(f"'{after_filename}' 파일 여는 중 (변경 내용 적용)...") # New log message
-
-                    doc2 = word_app.Documents.Open(after_path)
-                    doc2.Revisions.AcceptAll()
-
-                    self.log(f"'{before_filename}'과 '{after_filename}' 파일 비교 중...") # Modify this line
+                    # Open original documents
+                    doc1 = word_app.Documents.Open(original_before_path)
+                    doc2 = word_app.Documents.Open(original_after_path)
                     
+                    # Accept revisions and turn off tracking in memory
+                    doc1.Revisions.AcceptAll()
+                    doc1.TrackRevisions = False
+                    doc2.Revisions.AcceptAll()
+                    doc2.TrackRevisions = False
+
+                    self.log(f"'{original_filename}' 비교 중...")
                     author_name = self.textEditauthor.toPlainText()
                     if not author_name.strip():
                         author_name = "Administrator"
-
+                    
                     result_doc = word_app.CompareDocuments(
                         OriginalDocument=doc1,
                         RevisedDocument=doc2,
-                        Destination=2,
-                        Granularity=1,
+                        Destination=2, # Create new document
+                        Granularity=1, # Word by word
                         CompareMoves=True,
-                        RevisedAuthor=author_name
+                        RevisedAuthor=author_name,
+                        IgnoreAllComparisonWarnings=True # New parameter to suppress warnings
                     )
                     
-                    result_filename = f"비교_결과_{before_filename}"
+                    result_filename = f"비교_결과_{original_filename}"
                     result_save_path = os.path.join(save_dir, result_filename)
                     result_doc.SaveAs(os.path.abspath(result_save_path))
                     self.log(f"-> '비교 결과 문서' 저장: {result_save_path}")
 
                     if self.checkBoxExcel.isChecked():
-                        excel_filename = f"변경내용_{os.path.splitext(before_filename)[0]}.xlsx"
+                        excel_filename = f"변경내용_{os.path.splitext(original_filename)[0]}.xlsx"
                         excel_save_path = os.path.join(save_dir, excel_filename)
+                        
+                        self.log(f"-> '{original_filename}' Excel 보고서 생성 준비 중 (임시 파일 생성)...")
+                        # Save in-memory cleaned docs to temp files for excel_generator
+                        fd_excel_before, excel_temp_before_path = tempfile.mkstemp(suffix=".docx", prefix="excel_before_")
+                        os.close(fd_excel_before)
+                        doc1.SaveAs(os.path.abspath(excel_temp_before_path), FileFormat=12) # Save the cleaned doc1
+                        
+                        fd_excel_after, excel_temp_after_path = tempfile.mkstemp(suffix=".docx", prefix="excel_after_")
+                        os.close(fd_excel_after)
+                        doc2.SaveAs(os.path.abspath(excel_temp_after_path), FileFormat=12) # Save the cleaned doc2
+
                         try:
-                            create_excel_report(before_path, after_path, excel_save_path, self.log)
+                            # Use the temporary clean files for Excel report
+                            create_excel_report(excel_temp_before_path, excel_temp_after_path, excel_save_path, self.log)
                         except Exception as e:
                             self.log(f"-> Excel 보고서 생성 중 오류 발생: {e}")
                     
                 except Exception as e:
-                    self.log(f"'{before_filename}' 비교 중 오류 발생: {e}")
+                    self.log(f"'{original_filename}' 처리 중 오류 발생: {e}")
                 finally:
-                    # Close original documents without saving changes
+                    # Close all documents opened in the loop
                     if doc1: doc1.Close(SaveChanges=False)
                     if doc2: doc2.Close(SaveChanges=False)
                     if result_doc: result_doc.Close(SaveChanges=False)
+                    
+                    # Clean up temporary files for Excel report
+                    if excel_temp_before_path and os.path.exists(excel_temp_before_path):
+                        try: os.remove(excel_temp_before_path)
+                        except OSError as e: self.log(f"임시 파일 삭제 오류 '{excel_temp_before_path}': {e}")
+                    if excel_temp_after_path and os.path.exists(excel_temp_after_path):
+                        try: os.remove(excel_temp_after_path)
+                        except OSError as e: self.log(f"임시 파일 삭제 오류 '{excel_temp_after_path}': {e}")
 
         except Exception as e:
             self.log(f"오류: Microsoft Word 처리 중 문제가 발생했습니다. ({e})")
         finally:
             if word_app:
-                word_app.DisplayAlerts = -1
                 word_app.Quit(SaveChanges=False)
         
         self.log("모든 비교 작업을 완료했습니다.")
