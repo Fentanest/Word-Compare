@@ -6,10 +6,23 @@ from docx import Document
 import os
 
 def _extract_paragraphs_from_docx(file_path):
-    """Extract paragraphs from a .docx file."""
+    """Extract paragraphs and table cell texts from a .docx file."""
     try:
         doc = Document(file_path)
-        return [p.text for p in doc.paragraphs if p.text.strip()]
+        all_texts = []
+        # Extract text from paragraphs
+        for p in doc.paragraphs:
+            if p.text.strip():
+                all_texts.append(p.text.strip())
+
+        # Extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if paragraph.text.strip():
+                            all_texts.append(paragraph.text.strip())
+        return all_texts
     except Exception as e:
         raise Exception(f"Failed to parse DOCX file {file_path}: {str(e)}")
 
@@ -52,7 +65,7 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
     if log_callback:
         log_callback("-> 문단 변경 사항을 비교합니다...")
 
-    matcher = SequenceMatcher(None, paras_before, paras_after)
+    matcher = SequenceMatcher(None, paras_before, paras_after, autojunk=False)
     
     opcodes = matcher.get_opcodes()
     i = 0
@@ -68,8 +81,8 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
             
             location_str = f"{start_i1 + 1}~{end_i2}줄"
 
-            content_b = " ".join(paras_before[start_i1:end_i2])
-            content_a = " ".join(paras_after[start_j1:end_j2])
+            content_b = "\n".join(paras_before[start_i1:end_i2])
+            content_a = "\n".join(paras_after[start_j1:end_j2])
             
             words_b = content_b.split()
             words_a = content_a.split()
