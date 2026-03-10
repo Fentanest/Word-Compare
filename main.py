@@ -140,6 +140,29 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.txtLogOutput.append(message)
         QApplication.processEvents()
 
+    def extract_text_with_numbering(self, doc):
+        """Extracts text from a Word document including automatic numbering using COM."""
+        paras = []
+        for p in doc.Paragraphs:
+            try:
+                # Get the automatic number/bullet if it exists
+                list_str = p.Range.ListFormat.ListString
+                # Get the paragraph text and remove trailing carriage return (\r)
+                text = p.Range.Text.replace('\r', '').replace('\n', '')
+                
+                combined = f"{list_str} {text}" if list_str else text
+                if combined.strip():
+                    paras.append(combined.strip())
+            except Exception as e:
+                # Fallback in case of unexpected COM errors for a specific paragraph
+                try:
+                    text = p.Range.Text.replace('\r', '').replace('\n', '')
+                    if text.strip():
+                        paras.append(text.strip())
+                except:
+                    continue
+        return paras
+
     def open_github_link(self):
         github_url = "https://github.com/Fentanest/Word-Compare"
         QDesktopServices.openUrl(QUrl(github_url))
@@ -252,19 +275,14 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                         excel_filename = f"변경내용_{os.path.splitext(original_filename)[0]}.xlsx"
                         excel_save_path = os.path.join(save_dir, excel_filename)
                         
-                        self.log(f"-> '{original_filename}' Excel 보고서 생성 준비 중 (임시 파일 생성)...")
-                        # Save in-memory cleaned docs to temp files for excel_generator
-                        fd_excel_before, excel_temp_before_path = tempfile.mkstemp(suffix=".docx", prefix="excel_before_")
-                        os.close(fd_excel_before)
-                        doc1.SaveAs(os.path.abspath(excel_temp_before_path), FileFormat=12) # Save the cleaned doc1
+                        self.log(f"-> '{original_filename}' Excel 보고서 생성 중...")
                         
-                        fd_excel_after, excel_temp_after_path = tempfile.mkstemp(suffix=".docx", prefix="excel_after_")
-                        os.close(fd_excel_after)
-                        doc2.SaveAs(os.path.abspath(excel_temp_after_path), FileFormat=12) # Save the cleaned doc2
-
                         try:
-                            # Use the temporary clean files for Excel report
-                            create_excel_report(excel_temp_before_path, excel_temp_after_path, excel_save_path, self.log)
+                            # Use the temporary clean files for Excel report if we still want fallback or comparison by words
+                            paras_before = self.extract_text_with_numbering(doc1)
+                            paras_after = self.extract_text_with_numbering(doc2)
+                            
+                            create_excel_report(None, None, excel_save_path, self.log, paras_before, paras_after)
                         except Exception as e:
                             self.log(f"-> Excel 보고서 생성 중 오류 발생: {e}")
                     
