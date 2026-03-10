@@ -34,7 +34,9 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.setupUi(self)
         self.setWindowIcon(QIcon(resource_path('logo.png')))
         self.setWindowTitle(f"Word Compare Tool v{__version__}")
-        self.settings = QSettings("MyCompany", "WordCompareTool")
+        
+        # Windows 단일 파일 빌드 환경에서 더 안정적인 IniFormat 사용
+        self.settings = QSettings("settings.ini", QSettings.IniFormat)
 
         # 1. 모델 생성 및 리스트뷰에 설정
         self.model_before = QStandardItemModel()
@@ -55,8 +57,8 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.btnBrowsePath.clicked.connect(self.browse_path)
         self.btnOpenPath.clicked.connect(self.open_path)
 
-        # 4. 저장 경로 불러오기 또는 기본값 설정
-        self.load_initial_path()
+        # 4. 저장 경로, 작업자명, 엑셀 체크 여부 등 설정 불러오기
+        self.load_settings()
 
         # 5. 리스트뷰 이벤트 필터 설치 (키 삭제용)
         self.listViewbefore.installEventFilter(self)
@@ -72,12 +74,31 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         version_action.setEnabled(False) # Make it unclickable
         self.menuMade_by_Fentanest.addAction(version_action)
 
-    def load_initial_path(self):
+    def load_settings(self):
+        # 저장 경로
         saved_path = self.settings.value("savePath", "")
         if saved_path and os.path.isdir(saved_path):
             self.lineEditSavePath.setText(saved_path)
         else:
             self.lineEditSavePath.setText(os.path.join(os.path.expanduser("~"), "Desktop"))
+        
+        # 작업자명
+        saved_author = self.settings.value("author", "")
+        self.textEditauthor.setPlainText(saved_author)
+        
+        # 엑셀 보고서 생성 체크 여부 (기본값 True)
+        saved_excel_checked = self.settings.value("excelChecked", "true")
+        self.checkBoxExcel.setChecked(saved_excel_checked == "true")
+
+    def save_settings(self):
+        self.settings.setValue("savePath", self.lineEditSavePath.text())
+        self.settings.setValue("author", self.textEditauthor.toPlainText())
+        self.settings.setValue("excelChecked", "true" if self.checkBoxExcel.isChecked() else "false")
+        self.settings.sync() # 디스크에 즉시 저장 강제
+
+    def closeEvent(self, event):
+        self.save_settings()
+        super().closeEvent(event)
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Delete:
@@ -147,8 +168,11 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
             try:
                 # Get the automatic number/bullet if it exists
                 list_str = p.Range.ListFormat.ListString
-                # Get the paragraph text and remove trailing carriage return (\r)
-                text = p.Range.Text.replace('\r', '').replace('\n', '')
+                # Get the paragraph text and remove trailing carriage return (\r) and other control characters
+                text = p.Range.Text
+                
+                # \x07 (Bell), \x0b (Vertical Tab) 등 불필요한 제어 문자 제거
+                text = text.replace('\x07', '').replace('\x0b', '').replace('\r', '').replace('\n', '')
                 
                 combined = f"{list_str} {text}" if list_str else text
                 if combined.strip():
@@ -156,7 +180,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
             except Exception as e:
                 # Fallback in case of unexpected COM errors for a specific paragraph
                 try:
-                    text = p.Range.Text.replace('\r', '').replace('\n', '')
+                    text = p.Range.Text.replace('\x07', '').replace('\x0b', '').replace('\r', '').replace('\n', '')
                     if text.strip():
                         paras.append(text.strip())
                 except:
