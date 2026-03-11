@@ -1,3 +1,4 @@
+
 import re
 from difflib import SequenceMatcher
 import xlsxwriter
@@ -14,10 +15,10 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
                         paras_before=None, paras_after=None, get_loc_cb=None,
                         flags_b=None, flags_a=None, tables_before=None, tables_after=None):
     """
-    [Strategy 15] Safe Data Writing Engine.
-    Fixes the 'empty cell' bug caused by incorrect xlsxwriter rich_string usage.
+    [Strategy 16] Bidirectional Rich Diff Table Engine.
+    Shows Blue Strikethroughs in the 'Before' table and Red Bolds in the 'After' table.
     """
-    if log_callback: log_callback(f"-> Excel 보고서(데이터 쓰기 안정성 강화) 생성 중...")
+    if log_callback: log_callback(f"-> Excel 보고서(양방향 정밀 서식) 생성 중...")
 
     workbook = xlsxwriter.Workbook(excel_save_path)
     header_fmt = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'border': 1, 'bg_color': '#D3D3D3'})
@@ -31,6 +32,7 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
 
     def get_rich_diff(text_b, text_a):
         if not text_b: return [], [ins_fmt, text_a]
+        if not text_a: return [del_fmt, text_b], []
         words_b = [w for w in re.split(r'(\s+)', text_b) if w]; words_a = [w for w in re.split(r'(\s+)', text_a) if w]
         w_matcher = SequenceMatcher(None, words_b, words_a, autojunk=False)
         rich_b, rich_a = [], []
@@ -43,7 +45,7 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
             elif w_tag == 'replace': rich_b.extend([del_fmt, fb]); rich_a.extend([ins_fmt, fa])
         return rich_b, rich_a
 
-    # (1) 일반 본문 시트
+    # (1) 일반 본문 시트 (생략)
     main_ws = workbook.add_worksheet("변경 내용(일반)")
     main_ws.write_row('A1', ['위치', '수정 전', '수정 후'], header_fmt)
     main_ws.set_column('A:A', 25, loc_fmt); main_ws.set_column('B:C', 60, def_fmt)
@@ -67,7 +69,6 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
         rb, ra = get_rich_diff(content_b, content_a)
         main_ws.write(excel_row, 0, f"{get_loc_cb(orig_idx_b[i1], True) if get_loc_cb else '문단'}", loc_fmt)
         for col, r_data, f_text in [(1, rb, content_b), (2, ra, content_a)]:
-            # [SAFE WRITE] Rich String은 최소 3개의 인자가 필요함 (포맷, 텍스트, 포맷...)
             if len(r_data) >= 3 and len(r_data) <= 500:
                 try: main_ws.write_rich_string(excel_row, col, *r_data, def_fmt)
                 except: main_ws.write(excel_row, col, f_text, def_fmt)
@@ -75,39 +76,72 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
                 main_ws.write(excel_row, col, f_text, (ins_fmt if col==2 and r_data else (del_fmt if col==1 and r_data else def_fmt)))
         excel_row += 1
 
-    # (2) 표 시트
+    # (2) 표 시트 (양방향 정밀 서식)
     for t_idx in range(max_tables):
         sheet_name = f"표 {t_idx + 1}"
         ws = workbook.add_worksheet(sheet_name[:31])
         tb, ta = (tables_before[t_idx] if t_idx < len(tables_before) else []), (tables_after[t_idx] if t_idx < len(tables_after) else [])
+        
         max_cols_b = max([len(r) for r in tb]) if tb else 0
         after_start_col = max_cols_b + 1 if max_cols_b > 0 else 0
         ws.write(0, 0, "수정 전", header_fmt); ws.write(0, after_start_col, "수정 후", header_fmt)
-        row_opcodes, col_opcodes = all_results[1 + t_idx*2], all_results[2 + t_idx*2]
-        row_map = {j_idx: i_idx for tag, i1, i2, j1, j2 in row_opcodes if tag in ('equal', 'replace') for i_idx, j_idx in zip(range(i1, i2), range(j1, j2))}
-        col_map = {j_idx: i_idx for tag, i1, i2, j1, j2 in col_opcodes if tag in ('equal', 'replace') for i_idx, j_idx in zip(range(i1, i2), range(j1, j2))}
         
-        for r_idx, row in enumerate(tb):
-            for c_idx, val in enumerate(row): ws.write(r_idx + 2, c_idx, val, table_cell_fmt)
+        row_opcodes, col_opcodes = all_results[1 + t_idx*2], all_results[2 + t_idx*2]
+        
+        # 매핑 사전 구축
+        row_map_a2b = {} # After -> Before
+        row_map_b2a = {} # Before -> After
+        for tag, i1, i2, j1, j2 in row_opcodes:
+            if tag in ('equal', 'replace'):
+                for i_idx, j_idx in zip(range(i1, i2), range(j1, j2)):
+                    row_map_a2b[j_idx] = i_idx
+                    row_map_b2a[i_idx] = j_idx
+        
+        col_map_a2b = {} # After -> Before
+        col_map_b2a = {} # Before -> After
+        for tag, i1, i2, j1, j2 in col_opcodes:
+            if tag in ('equal', 'replace'):
+                for i_idx, j_idx in zip(range(i1, i2), range(j1, j2)):
+                    col_map_a2b[j_idx] = i_idx
+                    col_map_b2a[i_idx] = j_idx
 
+        # [수정 전 표 기록] (삭제 사항 표시)
+        for r_idx, row in enumerate(tb):
+            for c_idx, val_b in enumerate(row):
+                target_r = row_map_b2a.get(r_idx)
+                target_c = col_map_b2a.get(c_idx)
+                
+                is_changed = True
+                if target_r is not None and target_c is not None:
+                    try:
+                        val_a = ta[target_r][target_c]
+                        if val_b == val_a: is_changed = False
+                        else:
+                            rb, _ = get_rich_diff(val_b, val_a)
+                            if len(rb) >= 3:
+                                ws.write_rich_string(r_idx + 2, c_idx, *rb, table_cell_fmt)
+                                continue
+                    except: pass
+                
+                ws.write(r_idx + 2, c_idx, val_b, table_del_fmt if is_changed else table_cell_fmt)
+
+        # [수정 후 표 기록] (추가 사항 표시)
         for r_idx, row in enumerate(ta):
             for c_idx, val_a in enumerate(row):
-                orig_r = row_map.get(r_idx); orig_c = col_map.get(c_idx)
+                orig_r = row_map_a2b.get(r_idx); orig_c = col_map_a2b.get(c_idx)
                 is_changed = True
-                if orig_r is not None and orig_c is not None and orig_r < len(tb) and orig_c < len(tb[orig_r]):
-                    val_b = tb[orig_r][orig_c]
-                    if val_b == val_a: is_changed = False
-                    else:
-                        _, ra = get_rich_diff(val_b, val_a)
-                        # [SAFE WRITE] Rich String 안정성 검사
-                        if len(ra) >= 3 and len(ra) <= 500:
-                            try:
+                if orig_r is not None and orig_c is not None:
+                    try:
+                        val_b = tb[orig_r][orig_c]
+                        if val_b == val_a: is_changed = False
+                        else:
+                            _, ra = get_rich_diff(val_b, val_a)
+                            if len(ra) >= 3:
                                 ws.write_rich_string(r_idx + 2, c_idx + after_start_col, *ra, table_cell_fmt)
                                 continue
-                            except: pass
+                    except: pass
                 
-                # Rich String이 불가능하거나 데이터가 변경된 경우 일반 쓰기
                 ws.write(r_idx + 2, c_idx + after_start_col, val_a, table_ins_fmt if is_changed else table_cell_fmt)
 
     workbook.close()
-    if log_callback: log_callback(f"-> 무결성 데이터 쓰기 완료: {excel_save_path}")
+    if log_callback: log_callback(f"-> 양방향 정밀 보고서 저장 완료: {excel_save_path}")
