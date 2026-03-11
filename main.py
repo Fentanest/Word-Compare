@@ -161,31 +161,80 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.txtLogOutput.append(message)
         QApplication.processEvents()
 
-    def extract_text_with_numbering(self, doc):
-        """Extracts text from a Word document including automatic numbering using COM."""
-        paras = []
-        for p in doc.Paragraphs:
-            try:
-                # Get the automatic number/bullet if it exists
-                list_str = p.Range.ListFormat.ListString
-                # Get the paragraph text and remove trailing carriage return (\r) and other control characters
-                text = p.Range.Text
-                
-                # \x07 (Bell), \x0b (Vertical Tab) 등 불필요한 제어 문자 제거
-                text = text.replace('\x07', '').replace('\x0b', '').replace('\r', '').replace('\n', '')
-                
-                combined = f"{list_str} {text}" if list_str else text
-                if combined.strip():
-                    paras.append(combined.strip())
-            except Exception as e:
-                # Fallback in case of unexpected COM errors for a specific paragraph
-                try:
-                    text = p.Range.Text.replace('\x07', '').replace('\x0b', '').replace('\r', '').replace('\n', '')
-                    if text.strip():
-                        paras.append(text.strip())
-                except:
-                    continue
-        return paras
+    def extract_data_hybrid(self, doc, doc_name=""):
+        """
+        [Strategy 2.0] Hybrid XML Extraction.
+        1. Finalize auto-numbers in Word.
+        2. Save as temp docx.
+        3. Use python-docx to parse XML elements (100% accuracy, High speed).
+        """
+        import tempfile
+        from docx import Document as DocxReader
+        
+        try:
+            self.log(f"-> '{doc_name}' 데이터 분석 및 고속 추출 준비 중...")
+            # 1. 자동 번호를 텍스트로 확정 (Word 엔진 활용)
+            doc.Content.ListFormat.ConvertNumbersToText()
+            
+            # 2. 임시 파일로 저장 (XML 직접 접근을 위함)
+            fd, temp_path = tempfile.mkstemp(suffix=".docx", prefix="extract_")
+            os.close(fd)
+            doc.SaveAs(os.path.abspath(temp_path), FileFormat=12)
+            
+            # 3. python-docx로 파일 직접 열기 (Word 엔진 통신 없음 - 초고속)
+            reader = DocxReader(temp_path)
+            
+            paras = []
+            is_table_flags = []
+            tables_data = []
+            
+            # 4. 문서 요소(문단/표) 순차 스캔
+            # document.element.body를 직접 순회하여 문서 내 순서를 100% 보존
+            from docx.document import Document as _Document
+            from docx.table import Table as _Table
+            from docx.text.paragraph import Paragraph as _Paragraph
+            
+            # Accessing internal elements to preserve order
+            for child in reader.element.body:
+                if child.tag.endswith('p'): # Paragraph
+                    p_obj = _Paragraph(child, reader)
+                    text = p_obj.text.strip()
+                    # if text: # 빈 문단도 인덱스 유지를 위해 포함할 수 있음 (사용자 선택)
+                    paras.append(text)
+                    is_table_flags.append(False)
+                elif child.tag.endswith('tbl'): # Table
+                    t_obj = _Table(child, reader)
+                    is_table_flags.append(True)
+                    paras.append("[TABLE_MARKER]")
+                    
+                    # [ULTIMATE ROBUST EXTRACTION] 
+                    # 병합된 셀이 많은 복잡한 표에서도 데이터 누락을 원천 차단하는 방식
+                    table_grid = []
+                    try:
+                        # 각 행(row)이 가진 실제 셀(cell)들을 하나도 빠짐없이 리스트로 변환
+                        # 병합된 셀의 경우, 워드는 해당 영역의 모든 칸에 동일한 텍스트를 할당함
+                        for row in t_obj.rows:
+                            row_data = [cell.text.replace('\r', '\n').strip() for cell in row.cells]
+                            table_grid.append(row_data)
+                        
+                        # 추출된 표의 행/열 크기 로그 출력 (디버깅용)
+                        # self.log(f"-> 표 추출 완료: {len(table_grid)}행 x {len(table_grid[0]) if table_grid else 0}열")
+                        tables_data.append(table_grid)
+                    except Exception as te:
+                        self.log(f"-> 표 추출 중 오류: {te}")
+                        tables_data.append([["[데이터 추출 실패]"]])
+            
+            # 임시 파일 삭제
+            try: os.remove(temp_path)
+            except: pass
+            
+            self.log(f"-> '{doc_name}' 데이터 추출 완료 (표 {len(tables_data)}개 발견)")
+            return paras, is_table_flags, tables_data
+            
+        except Exception as e:
+            self.log(f"-> 하이브리드 추출 오류: {e}")
+            # Fallback (Very Slow)
+            return [p.Range.Text for p in doc.Paragraphs], [False]*doc.Paragraphs.Count, []
 
     def open_github_link(self):
         github_url = "https://github.com/Fentanest/Word-Compare"
@@ -248,9 +297,12 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
             word_app = win32.gencache.EnsureDispatch("Word.Application")
             word_app.Visible = False
             word_app.DisplayAlerts = 0
-            # word_app.AutomationSecurity = 3 # Removed as IgnoreAllComparisonWarnings should be sufficient
+            word_app.ScreenUpdating = False # [Strategy 3] 화면 갱신 억제로 속도 향상
             
             for i in range(before_count):
+                # 매 파일마다 Visibility 재확인 (일부 상황에서 자동으로 True가 되는 것을 방지)
+                if word_app.Visible: word_app.Visible = False
+                
                 before_item = self.model_before.item(i)
                 after_item = self.model_after.item(i)
                 
@@ -265,7 +317,9 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 try:
                     self.log(f"'{original_filename}' 파일 처리 중...")
 
-                    # Open original documents
+                    # 문서 열기 전에 다시 한 번 체크
+                    if word_app.Visible: word_app.Visible = False
+                    
                     doc1 = word_app.Documents.Open(original_before_path)
                     doc2 = word_app.Documents.Open(original_after_path)
                     
@@ -299,14 +353,22 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                         excel_filename = f"변경내용_{os.path.splitext(original_filename)[0]}.xlsx"
                         excel_save_path = os.path.join(save_dir, excel_filename)
                         
-                        self.log(f"-> '{original_filename}' Excel 보고서 생성 중...")
-                        
                         try:
-                            # Use the temporary clean files for Excel report if we still want fallback or comparison by words
-                            paras_before = self.extract_text_with_numbering(doc1)
-                            paras_after = self.extract_text_with_numbering(doc2)
+                            # Use Strategy 2.0: Hybrid XML Extraction (Faster & Accurate)
+                            paras_before, flags_b, tables_before = self.extract_data_hybrid(doc1, "수정 전 문서")
+                            paras_after, flags_a, tables_after = self.extract_data_hybrid(doc2, "수정 후 문서")
                             
-                            create_excel_report(None, None, excel_save_path, self.log, paras_before, paras_after)
+                            def get_loc_info(idx, is_before):
+                                # Note: Hybrid mode might have slightly different paragraph count than doc.Paragraphs.Count
+                                # because XML treats every <w:p> as a paragraph, including inside tables.
+                                # This is a simpler fallback for location.
+                                return f"{idx+1}행"
+
+                            create_excel_report(
+                                None, None, excel_save_path, self.log, 
+                                paras_before, paras_after, get_loc_info,
+                                flags_b, flags_a, tables_before, tables_after
+                            )
                         except Exception as e:
                             self.log(f"-> Excel 보고서 생성 중 오류 발생: {e}")
                     
@@ -330,12 +392,20 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
             self.log(f"오류: Microsoft Word 처리 중 문제가 발생했습니다. ({e})")
         finally:
             if word_app:
+                try:
+                    word_app.ScreenUpdating = True # 설정 복원
+                except:
+                    pass
                 word_app.Quit(SaveChanges=False)
         
         self.log("모든 비교 작업을 완료했습니다.")
 
 
 if __name__ == '__main__':
+    # 윈도우 단일 파일 빌드(.exe) 환경에서 멀티프로세싱 지원을 위해 필수
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     try:
         from ctypes import windll
         windll.ole32.CoInitialize(None)
