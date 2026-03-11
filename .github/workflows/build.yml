@@ -42,7 +42,7 @@ jobs:
           "Authorization" = "token $env:GITHUB_TOKEN"
           "Accept" = "application/vnd.github.v3+json"
         }
-        $url = "https://api.github.com/repos/${{ github.repository }}/tags/$env:TAG_NAME"
+        $url = "https://api.github.com/repos/${{ github.repository }}/git/ref/tags/$env:TAG_NAME"
         try {
           $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
           echo "tag_exists=true" >> $env:GITHUB_OUTPUT
