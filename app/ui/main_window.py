@@ -1,13 +1,14 @@
 import os
 
 from PySide6.QtCore import QEvent, Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QApplication, QAbstractItemView, QFileDialog, QMainWindow
 
-from app.models import AppSettings, CompareOptions, FilePair
+from app.models import AppSettings, CompareOptions
 from app.resources import resource_path
 from app.services.settings_service import SettingsService
 from app.services.word_compare_service import WordCompareService
+from app.ui.file_list_manager import FileListManager
 from main_ui import Ui_MainWindow
 from version import __version__
 
@@ -109,13 +110,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         for url in event.mimeData().urls():
             file_path = url.toLocalFile()
             if file_path.lower().endswith((".doc", ".docx")):
-                self._append_file_item(model, file_path)
-
-    def _append_file_item(self, model, file_path: str) -> None:
-        item = QStandardItem(os.path.basename(file_path))
-        item.setData(file_path, Qt.UserRole)
-        item.setFlags(item.flags() & ~Qt.ItemIsDropEnabled)
-        model.appendRow(item)
+                FileListManager.append_file_item(model, file_path)
 
     def browse_path(self):
         path = QFileDialog.getExistingDirectory(
@@ -146,24 +141,9 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.log("블로그 링크를 열었습니다.")
 
     def sort_list_views(self):
-        self._sort_model(self.model_before)
-        self._sort_model(self.model_after)
+        FileListManager.sort_model(self.model_before)
+        FileListManager.sort_model(self.model_after)
         self.log("리스트를 파일 이름으로 오름차순 정렬했습니다.")
-
-    def _sort_model(self, model) -> None:
-        items = []
-        for row in range(model.rowCount()):
-            item = model.item(row)
-            items.append((item.text(), item.data(Qt.UserRole)))
-
-        items.sort(key=lambda item: item[0])
-        model.clear()
-
-        for text, user_role_data in items:
-            item = QStandardItem(text)
-            item.setData(user_role_data, Qt.UserRole)
-            item.setFlags(item.flags() & ~Qt.ItemIsDropEnabled)
-            model.appendRow(item)
 
     def start_compare(self):
         before_count = self.model_before.rowCount()
@@ -188,26 +168,10 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 self.log(f"오류: 저장 폴더를 생성할 수 없습니다. {error}")
                 return
 
-        file_pairs = self._build_file_pairs()
+        file_pairs = FileListManager.build_file_pairs(self.model_before, self.model_after)
         options = CompareOptions(
             save_dir=save_dir,
             author_name=self.textEditauthor.toPlainText(),
             generate_excel=self.checkBoxExcel.isChecked(),
         )
         self.word_compare_service.compare_pairs(file_pairs, options, self.log)
-
-    def _build_file_pairs(self) -> list[FilePair]:
-        file_pairs: list[FilePair] = []
-        row_count = min(self.model_before.rowCount(), self.model_after.rowCount())
-
-        for row in range(row_count):
-            before_item = self.model_before.item(row)
-            after_item = self.model_after.item(row)
-            file_pairs.append(
-                FilePair(
-                    before_path=before_item.data(Qt.UserRole),
-                    after_path=after_item.data(Qt.UserRole),
-                )
-            )
-
-        return file_pairs

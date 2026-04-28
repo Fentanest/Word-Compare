@@ -80,6 +80,11 @@ jobs:
         .\venv\Scripts\pip.exe install -r requirements.txt
         .\venv\Scripts\pip.exe install pyinstaller
 
+    - name: Run unit tests
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      shell: powershell
+      run: .\venv\Scripts\python.exe -m unittest discover -s tests -v
+
     - name: Setup UPX 5.1.0
       if: steps.check_tag.outputs.tag_exists == 'false'
       id: setup_upx

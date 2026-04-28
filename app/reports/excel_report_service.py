@@ -1,21 +1,30 @@
 from app.reports.diff_engine import ExcelDiffEngine
 from app.reports.excel_writer import ExcelReportWriter
 from app.reports.models import ExcelReportInput
-from app.services.docx_extractor import DocxExtractor
+
+_EXTRACTOR_UNSET = object()
 
 
 class ExcelReportService:
     def __init__(
         self,
-        extractor: DocxExtractor | None = None,
+        extractor=_EXTRACTOR_UNSET,
         diff_engine: ExcelDiffEngine | None = None,
         writer: ExcelReportWriter | None = None,
     ):
-        self.extractor = extractor or DocxExtractor()
+        if extractor is _EXTRACTOR_UNSET:
+            from app.services.docx_extractor import DocxExtractor
+
+            extractor = DocxExtractor()
+
+        self.extractor = extractor
         self.diff_engine = diff_engine or ExcelDiffEngine()
         self.writer = writer or ExcelReportWriter()
 
     def generate(self, before_doc, after_doc, excel_save_path: str, log_callback) -> None:
+        if self.extractor is None:
+            raise RuntimeError("문서 추출기가 없어 generate()를 사용할 수 없습니다.")
+
         before_data = self.extractor.extract_data_hybrid(
             before_doc,
             log_callback,

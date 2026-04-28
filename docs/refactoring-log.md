@@ -36,10 +36,23 @@
 
 ### Next Candidates
 - Remove root wrapper scripts after confirming no one depends on them.
-- Add lightweight smoke tests around report generation.
+- Expand the new lightweight report tests into broader service/UI smoke tests.
 - Revisit `main.spec` and packaging once the folder layout stabilizes.
 - Consider moving generated/test artifacts into `samples/` or a scratch directory.
 
 ### Notes
 - `main_ui.py` remains generated code and should continue to be treated as read-only.
 - The refactor is intentionally behavior-preserving first, cleanup second.
+
+### Test Coverage Added
+- `tests/test_diff_engine.py`
+  verifies paragraph filtering and diff-plan generation.
+- `tests/test_excel_report_pipeline.py`
+  verifies workbook generation, sheet names, and key shared strings without depending on Excel or Word.
+- `tests/test_file_list_manager.py`
+  verifies list item creation, sorting, and before/after file pair assembly.
+- GitHub Actions build now runs `python -m unittest discover -s tests -v` before packaging.
+
+### Batch 3 Details
+- Extracted file-list item creation, sorting, and pair assembly out of `main_window.py`.
+- Added `app/ui/file_list_manager.py` so the main window only coordinates UI events.
