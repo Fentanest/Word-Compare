@@ -1,0 +1,235 @@
+import re
+from difflib import SequenceMatcher
+
+import xlsxwriter
+
+from app.reports.models import ExcelDiffPlan, ExcelReportInput
+
+
+class ExcelReportWriter:
+    def write(self, report_input: ExcelReportInput, diff_plan: ExcelDiffPlan) -> None:
+        self._log(report_input, "-> Excel 보고서(양방향 정밀 서식) 생성 중...")
+
+        workbook = xlsxwriter.Workbook(report_input.excel_save_path)
+        formats = self._build_formats(workbook)
+
+        self._write_main_sheet(workbook, formats, report_input, diff_plan)
+        self._write_table_sheets(workbook, formats, diff_plan)
+
+        workbook.close()
+        self._log(report_input, f"-> 양방향 정밀 보고서 저장 완료: {report_input.excel_save_path}")
+
+    def _write_main_sheet(self, workbook, formats, report_input: ExcelReportInput, diff_plan: ExcelDiffPlan) -> None:
+        worksheet = workbook.add_worksheet("변경 내용(일반)")
+        worksheet.write_row("A1", ["위치", "수정 전", "수정 후"], formats["header"])
+        worksheet.set_column("A:A", 25, formats["loc"])
+        worksheet.set_column("B:C", 60, formats["default"])
+        worksheet.freeze_panes(1, 0)
+
+        excel_row = 1
+        for tag, i1, i2, j1, j2 in diff_plan.main_opcodes:
+            if tag == "equal":
+                continue
+            content_before = "\n".join(diff_plan.filtered_paras_before[i1:i2]).strip()
+            content_after = "\n".join(diff_plan.filtered_paras_after[j1:j2]).strip()
+            if not content_before and not content_after:
+                continue
+
+            rich_before, rich_after = self._get_rich_diff(content_before, content_after, formats)
+            worksheet.write(
+                excel_row,
+                0,
+                self._resolve_location(report_input, diff_plan, i1, j1),
+                formats["loc"],
+            )
+
+            for column, rich_data, plain_text in (
+                (1, rich_before, content_before),
+                (2, rich_after, content_after),
+            ):
+                self._write_rich_or_plain(
+                    worksheet,
+                    excel_row,
+                    column,
+                    rich_data,
+                    plain_text,
+                    formats,
+                )
+            excel_row += 1
+
+    def _write_table_sheets(self, workbook, formats, diff_plan: ExcelDiffPlan) -> None:
+        for table_plan in diff_plan.tables:
+            sheet_name = f"표 {table_plan.index + 1}"
+            worksheet = workbook.add_worksheet(sheet_name[:31])
+
+            max_cols_before = max((len(row) for row in table_plan.before_table), default=0)
+            after_start_col = max_cols_before + 1 if max_cols_before > 0 else 0
+            worksheet.write(0, 0, "수정 전", formats["header"])
+            worksheet.write(0, after_start_col, "수정 후", formats["header"])
+
+            row_map_after_to_before, row_map_before_to_after = self._build_bidirectional_map(
+                table_plan.row_opcodes
+            )
+            col_map_after_to_before, col_map_before_to_after = self._build_bidirectional_map(
+                table_plan.col_opcodes
+            )
+
+            for row_index, row in enumerate(table_plan.before_table):
+                for col_index, value_before in enumerate(row):
+                    target_row = row_map_before_to_after.get(row_index)
+                    target_col = col_map_before_to_after.get(col_index)
+
+                    is_changed = True
+                    if target_row is not None and target_col is not None:
+                        try:
+                            value_after = table_plan.after_table[target_row][target_col]
+                            if value_before == value_after:
+                                is_changed = False
+                            else:
+                                rich_before, _ = self._get_rich_diff(value_before, value_after, formats)
+                                if len(rich_before) >= 3:
+                                    worksheet.write_rich_string(
+                                        row_index + 2,
+                                        col_index,
+                                        *rich_before,
+                                        formats["table_cell"],
+                                    )
+                                    continue
+                        except Exception:
+                            pass
+
+                    worksheet.write(
+                        row_index + 2,
+                        col_index,
+                        value_before,
+                        formats["table_del"] if is_changed else formats["table_cell"],
+                    )
+
+            for row_index, row in enumerate(table_plan.after_table):
+                for col_index, value_after in enumerate(row):
+                    original_row = row_map_after_to_before.get(row_index)
+                    original_col = col_map_after_to_before.get(col_index)
+
+                    is_changed = True
+                    if original_row is not None and original_col is not None:
+                        try:
+                            value_before = table_plan.before_table[original_row][original_col]
+                            if value_before == value_after:
+                                is_changed = False
+                            else:
+                                _, rich_after = self._get_rich_diff(value_before, value_after, formats)
+                                if len(rich_after) >= 3:
+                                    worksheet.write_rich_string(
+                                        row_index + 2,
+                                        col_index + after_start_col,
+                                        *rich_after,
+                                        formats["table_cell"],
+                                    )
+                                    continue
+                        except Exception:
+                            pass
+
+                    worksheet.write(
+                        row_index + 2,
+                        col_index + after_start_col,
+                        value_after,
+                        formats["table_ins"] if is_changed else formats["table_cell"],
+                    )
+
+    @staticmethod
+    def _build_formats(workbook):
+        return {
+            "header": workbook.add_format(
+                {"bold": True, "align": "center", "valign": "vcenter", "border": 1, "bg_color": "#D3D3D3"}
+            ),
+            "del": workbook.add_format(
+                {"font_color": "blue", "font_strikeout": True, "valign": "vcenter", "text_wrap": True}
+            ),
+            "ins": workbook.add_format(
+                {"font_color": "red", "bold": True, "valign": "vcenter", "text_wrap": True}
+            ),
+            "default": workbook.add_format({"valign": "vcenter", "text_wrap": True}),
+            "loc": workbook.add_format({"align": "center", "valign": "vcenter", "text_wrap": True}),
+            "table_cell": workbook.add_format({"valign": "vcenter", "border": 1, "text_wrap": True}),
+            "table_ins": workbook.add_format(
+                {"font_color": "red", "bold": True, "valign": "vcenter", "border": 1, "text_wrap": True}
+            ),
+            "table_del": workbook.add_format(
+                {"font_color": "blue", "font_strikeout": True, "valign": "vcenter", "border": 1, "text_wrap": True}
+            ),
+        }
+
+    @staticmethod
+    def _get_rich_diff(text_before: str, text_after: str, formats):
+        if not text_before:
+            return [], [formats["ins"], text_after]
+        if not text_after:
+            return [formats["del"], text_before], []
+
+        words_before = [word for word in re.split(r"(\s+)", text_before) if word]
+        words_after = [word for word in re.split(r"(\s+)", text_after) if word]
+        matcher = SequenceMatcher(None, words_before, words_after, autojunk=False)
+
+        rich_before = []
+        rich_after = []
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            fragment_before = "".join(words_before[i1:i2])
+            fragment_after = "".join(words_after[j1:j2])
+            if tag == "equal":
+                if fragment_before:
+                    rich_before.extend([formats["default"], fragment_before])
+                    rich_after.extend([formats["default"], fragment_after])
+            elif tag == "delete":
+                rich_before.extend([formats["del"], fragment_before])
+            elif tag == "insert":
+                rich_after.extend([formats["ins"], fragment_after])
+            elif tag == "replace":
+                rich_before.extend([formats["del"], fragment_before])
+                rich_after.extend([formats["ins"], fragment_after])
+
+        return rich_before, rich_after
+
+    @staticmethod
+    def _write_rich_or_plain(worksheet, row, col, rich_data, plain_text, formats) -> None:
+        if len(rich_data) >= 3 and len(rich_data) <= 500:
+            try:
+                worksheet.write_rich_string(row, col, *rich_data, formats["default"])
+                return
+            except Exception:
+                pass
+
+        if col == 2 and rich_data:
+            fallback_format = formats["ins"]
+        elif col == 1 and rich_data:
+            fallback_format = formats["del"]
+        else:
+            fallback_format = formats["default"]
+
+        worksheet.write(row, col, plain_text, fallback_format)
+
+    @staticmethod
+    def _build_bidirectional_map(opcodes):
+        map_after_to_before = {}
+        map_before_to_after = {}
+        for tag, i1, i2, j1, j2 in opcodes:
+            if tag in ("equal", "replace"):
+                for before_index, after_index in zip(range(i1, i2), range(j1, j2)):
+                    map_after_to_before[after_index] = before_index
+                    map_before_to_after[before_index] = after_index
+        return map_after_to_before, map_before_to_after
+
+    @staticmethod
+    def _resolve_location(report_input: ExcelReportInput, diff_plan: ExcelDiffPlan, i1: int, j1: int) -> str:
+        if not report_input.get_loc_cb:
+            return "문단"
+
+        if i1 < len(diff_plan.original_indices_before):
+            return report_input.get_loc_cb(diff_plan.original_indices_before[i1], True)
+        if j1 < len(diff_plan.original_indices_after):
+            return report_input.get_loc_cb(diff_plan.original_indices_after[j1], False)
+        return "문단"
+
+    @staticmethod
+    def _log(report_input: ExcelReportInput, message: str) -> None:
+        if report_input.log_callback:
+            report_input.log_callback(message)
