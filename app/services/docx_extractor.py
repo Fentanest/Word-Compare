@@ -5,7 +5,7 @@ from docx import Document as DocxReader
 from docx.table import Table as _Table
 from docx.text.paragraph import Paragraph as _Paragraph
 
-from app.models import ExtractedDocument, TableCellData
+from app.models import ExtractedDocument, ParagraphData, RunData, TableCellData
 
 
 class DocxExtractor:
@@ -21,14 +21,14 @@ class DocxExtractor:
             doc.SaveAs(os.path.abspath(temp_path), FileFormat=12)
 
             reader = DocxReader(temp_path)
-            paragraphs: list[str] = []
+            paragraphs: list[str | ParagraphData] = []
             table_flags: list[bool] = []
             tables: list[list[list[str | TableCellData]]] = []
 
             for child in reader.element.body:
                 if child.tag.endswith("p"):
                     paragraph = _Paragraph(child, reader)
-                    paragraphs.append(paragraph.text.strip())
+                    paragraphs.append(self._build_paragraph_data(paragraph))
                     table_flags.append(False)
                 elif child.tag.endswith("tbl"):
                     table = _Table(child, reader)
@@ -115,6 +115,50 @@ class DocxExtractor:
         )
 
     @staticmethod
+    def _build_paragraph_data(paragraph) -> ParagraphData:
+        paragraph_format = paragraph.paragraph_format
+        runs = tuple(DocxExtractor._build_run_data(run) for run in paragraph.runs if run.text)
+
+        return ParagraphData(
+            text=paragraph.text.strip(),
+            style_name=DocxExtractor._safe_name(getattr(paragraph, "style", None)),
+            alignment=DocxExtractor._normalize_enum(paragraph.alignment),
+            left_indent=DocxExtractor._normalize_length(paragraph_format.left_indent),
+            right_indent=DocxExtractor._normalize_length(paragraph_format.right_indent),
+            first_line_indent=DocxExtractor._normalize_length(paragraph_format.first_line_indent),
+            space_before=DocxExtractor._normalize_length(paragraph_format.space_before),
+            space_after=DocxExtractor._normalize_length(paragraph_format.space_after),
+            line_spacing=DocxExtractor._normalize_scalar(paragraph_format.line_spacing),
+            keep_together=bool(paragraph_format.keep_together),
+            keep_with_next=bool(paragraph_format.keep_with_next),
+            page_break_before=bool(paragraph_format.page_break_before),
+            widow_control=bool(paragraph_format.widow_control),
+            runs=runs,
+        )
+
+    @staticmethod
+    def _build_run_data(run) -> RunData:
+        font = run.font
+        color = ""
+        try:
+            color = str(font.color.rgb) if getattr(font.color, "rgb", None) else ""
+        except Exception:
+            color = ""
+
+        return RunData(
+            text=run.text.replace("\r", "\n"),
+            bold=bool(font.bold),
+            italic=bool(font.italic),
+            underline=DocxExtractor._normalize_scalar(font.underline),
+            font_name=font.name or "",
+            font_size=DocxExtractor._normalize_length(font.size),
+            color=color,
+            highlight=DocxExtractor._normalize_scalar(font.highlight_color),
+            strike=bool(font.strike),
+            style_name=DocxExtractor._safe_name(getattr(run, "style", None)),
+        )
+
+    @staticmethod
     def _extract_table_grid_widths(table) -> list[int]:
         tbl_grid = getattr(table._tbl, "tblGrid", None)
         if tbl_grid is None:
@@ -151,3 +195,31 @@ class DocxExtractor:
             return int(value)
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _normalize_length(value) -> int:
+        if value is None:
+            return 0
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def _normalize_scalar(value) -> str:
+        if value is None:
+            return ""
+        return str(value)
+
+    @staticmethod
+    def _normalize_enum(value) -> str:
+        if value is None:
+            return ""
+        try:
+            return str(int(value))
+        except (TypeError, ValueError):
+            return str(value)
+
+    @staticmethod
+    def _safe_name(value) -> str:
+        return getattr(value, "name", "") or ""

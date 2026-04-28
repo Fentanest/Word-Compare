@@ -1,7 +1,7 @@
 import concurrent.futures
 from difflib import SequenceMatcher
 
-from app.models import TableCellData
+from app.models import ParagraphData, TableCellData
 from app.reports.models import ExcelDiffPlan, ExcelReportInput, TableDiffPlan
 
 
@@ -26,7 +26,12 @@ class ExcelDiffEngine:
         tables_after = report_input.tables_after or []
         max_tables = max(len(tables_before), len(tables_after))
 
-        tasks = [(filtered_paras_before, filtered_paras_after)]
+        tasks = [
+            (
+                self._build_paragraph_signatures(filtered_paras_before),
+                self._build_paragraph_signatures(filtered_paras_after),
+            )
+        ]
         for table_index in range(max_tables):
             before_table = tables_before[table_index] if table_index < len(tables_before) else []
             after_table = tables_after[table_index] if table_index < len(tables_after) else []
@@ -99,6 +104,10 @@ class ExcelDiffEngine:
         return signatures
 
     @staticmethod
+    def _build_paragraph_signatures(paragraphs):
+        return [ExcelDiffEngine._paragraph_signature(paragraph) for paragraph in paragraphs]
+
+    @staticmethod
     def _build_column_signatures(table):
         max_cols = max((len(row) for row in table), default=0)
         signatures = []
@@ -115,6 +124,12 @@ class ExcelDiffEngine:
     @staticmethod
     def _normalize_text(value):
         return str(value).replace("\r", "\n").strip()
+
+    @staticmethod
+    def _paragraph_signature(value):
+        if isinstance(value, ParagraphData):
+            return value.signature
+        return (ExcelDiffEngine._normalize_text(value),)
 
     @staticmethod
     def _cell_signature(value):

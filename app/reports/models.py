@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from typing import Callable
 
-from app.models import TableCellData
+from app.models import ParagraphData, TableCellData
 
 
 type Opcode = tuple[str, int, int, int, int]
+type ParagraphValue = str | ParagraphData
 type TableCellValue = str | TableCellData
 
 
@@ -12,8 +13,8 @@ type TableCellValue = str | TableCellData
 class ExcelReportInput:
     excel_save_path: str
     log_callback: Callable[[str], None] | None = None
-    paras_before: list[str] | None = None
-    paras_after: list[str] | None = None
+    paras_before: list[ParagraphValue] | None = None
+    paras_after: list[ParagraphValue] | None = None
     get_loc_cb: Callable[[int, bool], str] | None = None
     flags_b: list[bool] | None = None
     flags_a: list[bool] | None = None
@@ -32,8 +33,8 @@ class TableDiffPlan:
 
 @dataclass(frozen=True)
 class ExcelDiffPlan:
-    filtered_paras_before: list[str]
-    filtered_paras_after: list[str]
+    filtered_paras_before: list[ParagraphValue]
+    filtered_paras_after: list[ParagraphValue]
     original_indices_before: list[int]
     original_indices_after: list[int]
     main_opcodes: list[Opcode]

@@ -71,3 +71,9 @@
 - Extended `TableCellData` with layout metadata for `tcW`, `trHeight`, and `tblGrid` column widths.
 - Updated the DOCX extractor so table-cell signatures now preserve width and row-height changes from Word XML.
 - Added regression tests covering cell-width, row-height, and table-grid width changes.
+
+### Batch 7 Details
+- Added `ParagraphData` and `RunData` so body paragraphs can carry lightweight paragraph and run formatting metadata.
+- Updated the diff engine to align body paragraphs by metadata-aware signatures instead of plain text only.
+- Marked format-only body changes as `[서식 변경]` in the Excel report without adding extra Word COM layout calls.
+- Kept page/line location expansion out of the default path because it would require expensive per-paragraph Word layout queries.

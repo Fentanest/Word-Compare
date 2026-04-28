@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
+from app.models import ParagraphData, RunData
 from app.reports.excel_report_service import ExcelReportService
 from excel_generator import create_excel_report
 
@@ -87,6 +88,36 @@ class ExcelReportPipelineTests(unittest.TestCase):
             self.assertIn("수정 후", strings)
             self.assertIn("B", strings)
             self.assertIn("B2", strings)
+
+    def test_format_only_paragraph_changes_are_marked_in_main_sheet(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "format-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                paras_before=[
+                    ParagraphData(
+                        text="같은 문장",
+                        runs=(RunData(text="같은 문장", bold=False),),
+                    )
+                ],
+                paras_after=[
+                    ParagraphData(
+                        text="같은 문장",
+                        runs=(RunData(text="같은 문장", bold=True),),
+                    )
+                ],
+                flags_b=[False],
+                flags_a=[False],
+                tables_before=[],
+                tables_after=[],
+                get_loc_cb=lambda idx, is_before: f"{idx + 1}행",
+            )
+
+            strings = extract_shared_strings(xlsx_path)
+            self.assertIn("같은 문장 [서식 변경]", strings)
 
 
 if __name__ == "__main__":

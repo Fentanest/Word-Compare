@@ -3,7 +3,7 @@ from difflib import SequenceMatcher
 
 import xlsxwriter
 
-from app.models import TableCellData
+from app.models import ParagraphData, TableCellData
 from app.reports.models import ExcelDiffPlan, ExcelReportInput
 
 
@@ -31,10 +31,14 @@ class ExcelReportWriter:
         for tag, i1, i2, j1, j2 in diff_plan.main_opcodes:
             if tag == "equal":
                 continue
-            content_before = "\n".join(diff_plan.filtered_paras_before[i1:i2]).strip()
-            content_after = "\n".join(diff_plan.filtered_paras_after[j1:j2]).strip()
+            content_before = self._paragraph_block_text(diff_plan.filtered_paras_before[i1:i2])
+            content_after = self._paragraph_block_text(diff_plan.filtered_paras_after[j1:j2])
             if not content_before and not content_after:
                 continue
+
+            if content_before == content_after:
+                content_before = self._mark_format_only_change(content_before)
+                content_after = self._mark_format_only_change(content_after)
 
             rich_before, rich_after = self._get_rich_diff(content_before, content_after, formats)
             worksheet.write(
@@ -238,6 +242,23 @@ class ExcelReportWriter:
     def _log(report_input: ExcelReportInput, message: str) -> None:
         if report_input.log_callback:
             report_input.log_callback(message)
+
+    @staticmethod
+    def _paragraph_block_text(paragraphs) -> str:
+        return "\n".join(ExcelReportWriter._paragraph_text(paragraph) for paragraph in paragraphs).strip()
+
+    @staticmethod
+    def _paragraph_text(value) -> str:
+        if isinstance(value, ParagraphData):
+            return value.text
+        return str(value)
+
+    @staticmethod
+    def _mark_format_only_change(text: str) -> str:
+        stripped = text.strip()
+        if stripped:
+            return f"{stripped} [서식 변경]"
+        return "[서식 변경]"
 
     @staticmethod
     def _cell_text(value) -> str:

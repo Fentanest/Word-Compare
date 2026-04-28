@@ -52,10 +52,77 @@ class TableCellData:
 
 
 @dataclass(frozen=True)
+class RunData:
+    text: str
+    bold: bool = False
+    italic: bool = False
+    underline: str = ""
+    font_name: str = ""
+    font_size: int = 0
+    color: str = ""
+    highlight: str = ""
+    strike: bool = False
+    style_name: str = ""
+
+    @property
+    def signature(self) -> tuple[str, bool, bool, str, str, int, str, str, bool, str]:
+        return (
+            self.text,
+            self.bold,
+            self.italic,
+            self.underline,
+            self.font_name,
+            self.font_size,
+            self.color,
+            self.highlight,
+            self.strike,
+            self.style_name,
+        )
+
+
+@dataclass(frozen=True)
+class ParagraphData:
+    text: str
+    style_name: str = ""
+    alignment: str = ""
+    left_indent: int = 0
+    right_indent: int = 0
+    first_line_indent: int = 0
+    space_before: int = 0
+    space_after: int = 0
+    line_spacing: str = ""
+    keep_together: bool = False
+    keep_with_next: bool = False
+    page_break_before: bool = False
+    widow_control: bool = False
+    runs: tuple[RunData, ...] = ()
+
+    @property
+    def signature(self) -> tuple[str, str, str, int, int, int, int, int, str, bool, bool, bool, bool, tuple]:
+        return (
+            self.text,
+            self.style_name,
+            self.alignment,
+            self.left_indent,
+            self.right_indent,
+            self.first_line_indent,
+            self.space_before,
+            self.space_after,
+            self.line_spacing,
+            self.keep_together,
+            self.keep_with_next,
+            self.page_break_before,
+            self.widow_control,
+            tuple(run.signature for run in self.runs),
+        )
+
+
+@dataclass(frozen=True)
 class ExtractedDocument:
-    paragraphs: list[str]
+    paragraphs: list[str | ParagraphData]
     table_flags: list[bool]
     tables: list[list[list[str | TableCellData]]]
+    paragraph_locations: list[str] | None = None
 
 
 @dataclass(frozen=True)

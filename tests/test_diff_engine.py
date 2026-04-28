@@ -1,6 +1,6 @@
 import unittest
 
-from app.models import TableCellData
+from app.models import ParagraphData, RunData, TableCellData
 from app.reports.diff_engine import ExcelDiffEngine
 from app.reports.models import ExcelReportInput
 
@@ -109,6 +109,44 @@ class ExcelDiffEngineTests(unittest.TestCase):
         row_opcodes = diff_plan.tables[0].row_opcodes
 
         self.assertIn(("replace", 0, 1, 0, 1), row_opcodes)
+
+    def test_paragraph_run_format_changes_affect_main_diff_signatures(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            paras_before=[
+                ParagraphData(
+                    text="같은 본문",
+                    runs=(RunData(text="같은 본문", bold=False),),
+                )
+            ],
+            paras_after=[
+                ParagraphData(
+                    text="같은 본문",
+                    runs=(RunData(text="같은 본문", bold=True),),
+                )
+            ],
+            flags_b=[False],
+            flags_a=[False],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+
+        self.assertEqual(diff_plan.main_opcodes, [("replace", 0, 1, 0, 1)])
+
+    def test_paragraph_style_changes_affect_main_diff_signatures(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            paras_before=[ParagraphData(text="제목", style_name="Normal")],
+            paras_after=[ParagraphData(text="제목", style_name="Heading 1")],
+            flags_b=[False],
+            flags_a=[False],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+
+        self.assertEqual(diff_plan.main_opcodes, [("replace", 0, 1, 0, 1)])
 
     def test_cell_width_changes_affect_table_alignment_signatures(self):
         engine = ExcelDiffEngine()
