@@ -2,6 +2,7 @@ import os
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
+from time import perf_counter
 
 from docx import Document as DocxReader
 from docx.table import Table as _Table
@@ -23,21 +24,29 @@ class DocxExtractor:
 
     def extract_data_hybrid(self, doc, log_callback=None, doc_name: str = "") -> ExtractedDocument:
         try:
+            total_started_at = perf_counter()
             self._log(log_callback, f"-> '{doc_name}' 데이터 분석 및 고속 추출 준비 중...")
 
             # Word가 자동 번호를 실제 텍스트로 확정하도록 한 번 정리한다.
+            convert_started_at = perf_counter()
             doc.Content.ListFormat.ConvertNumbersToText()
+            self._log_perf(log_callback, f"{doc_name} 번호 텍스트화", convert_started_at)
 
+            save_started_at = perf_counter()
             fd, temp_path = tempfile.mkstemp(suffix=".docx", prefix="extract_")
             os.close(fd)
             doc.SaveAs(os.path.abspath(temp_path), FileFormat=12)
+            self._log_perf(log_callback, f"{doc_name} 임시 DOCX 저장", save_started_at)
 
+            reader_started_at = perf_counter()
             reader = DocxReader(temp_path)
+            self._log_perf(log_callback, f"{doc_name} python-docx 로드", reader_started_at)
             paragraphs: list[str | ParagraphData] = []
             table_flags: list[bool] = []
             tables: list[list[list[str | TableCellData]]] = []
             paragraph_locations: list[str] = []
 
+            body_parse_started_at = perf_counter()
             for child in reader.element.body:
                 if child.tag.endswith("p"):
                     paragraph = _Paragraph(child, reader)
@@ -68,12 +77,15 @@ class DocxExtractor:
                     except Exception as table_error:
                         self._log(log_callback, f"-> 표 추출 중 오류: {table_error}")
                         tables.append([["[데이터 추출 실패]"]])
+            self._log_perf(log_callback, f"{doc_name} 본문/표 파싱", body_parse_started_at)
 
+            metadata_started_at = perf_counter()
             with zipfile.ZipFile(temp_path) as archive:
                 metadata_blocks, metadata_locations = self._extract_metadata_blocks(archive)
                 paragraphs.extend(metadata_blocks)
                 table_flags.extend([False] * len(metadata_blocks))
                 paragraph_locations.extend(metadata_locations)
+            self._log_perf(log_callback, f"{doc_name} XML 메타데이터 파싱", metadata_started_at)
 
             try:
                 os.remove(temp_path)
@@ -84,6 +96,7 @@ class DocxExtractor:
                 log_callback,
                 f"-> '{doc_name}' 데이터 추출 완료 (표 {len(tables)}개, 메타데이터 {len(metadata_blocks)}개 발견)",
             )
+            self._log_perf(log_callback, f"{doc_name} 추출 전체", total_started_at)
             return ExtractedDocument(
                 paragraphs=paragraphs,
                 table_flags=table_flags,
@@ -103,6 +116,10 @@ class DocxExtractor:
     def _log(log_callback, message: str) -> None:
         if log_callback:
             log_callback(message)
+
+    @staticmethod
+    def _log_perf(log_callback, label: str, started_at: float) -> None:
+        DocxExtractor._log(log_callback, f"[성능] {label}: {perf_counter() - started_at:.3f}초")
 
     @staticmethod
     def _build_cell_data(cell, row_height: int = 0, grid_col_width: int = 0) -> TableCellData:
