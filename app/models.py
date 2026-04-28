@@ -38,9 +38,14 @@ class TableCellData:
     cell_width: int = 0
     row_height: int = 0
     grid_col_width: int = 0
+    border_signature: str = ""
+    shading_fill: str = ""
+    vertical_align: str = ""
+    text_direction: str = ""
+    nested_table_count: int = 0
 
     @property
-    def signature(self) -> tuple[str, int, str, int, int, int]:
+    def signature(self) -> tuple[str, int, str, int, int, int, str, str, str, str, int]:
         return (
             self.text,
             self.grid_span,
@@ -48,6 +53,11 @@ class TableCellData:
             self.cell_width,
             self.row_height,
             self.grid_col_width,
+            self.border_signature,
+            self.shading_fill,
+            self.vertical_align,
+            self.text_direction,
+            self.nested_table_count,
         )
 
 
@@ -85,6 +95,8 @@ class ParagraphData:
     text: str
     style_name: str = ""
     alignment: str = ""
+    source_kind: str = "body"
+    source_identifier: str = ""
     left_indent: int = 0
     right_indent: int = 0
     first_line_indent: int = 0
@@ -96,13 +108,16 @@ class ParagraphData:
     page_break_before: bool = False
     widow_control: bool = False
     runs: tuple[RunData, ...] = ()
+    extra_meta: tuple[str, ...] = ()
 
     @property
-    def signature(self) -> tuple[str, str, str, int, int, int, int, int, str, bool, bool, bool, bool, tuple]:
+    def signature(self) -> tuple[str, str, str, str, str, int, int, int, int, int, str, bool, bool, bool, bool, tuple, tuple[str, ...]]:
         return (
             self.text,
             self.style_name,
             self.alignment,
+            self.source_kind,
+            self.source_identifier,
             self.left_indent,
             self.right_indent,
             self.first_line_indent,
@@ -114,6 +129,7 @@ class ParagraphData:
             self.page_break_before,
             self.widow_control,
             tuple(run.signature for run in self.runs),
+            self.extra_meta,
         )
 
 

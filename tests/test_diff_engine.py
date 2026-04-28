@@ -148,6 +148,34 @@ class ExcelDiffEngineTests(unittest.TestCase):
 
         self.assertEqual(diff_plan.main_opcodes, [("replace", 0, 1, 0, 1)])
 
+    def test_metadata_block_changes_affect_main_diff_signatures(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            paras_before=[
+                ParagraphData(
+                    text="구역 1 설정",
+                    source_kind="section",
+                    source_identifier="1",
+                    extra_meta=("pgSz:orient=portrait",),
+                )
+            ],
+            paras_after=[
+                ParagraphData(
+                    text="구역 1 설정",
+                    source_kind="section",
+                    source_identifier="1",
+                    extra_meta=("pgSz:orient=landscape",),
+                )
+            ],
+            flags_b=[False],
+            flags_a=[False],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+
+        self.assertEqual(diff_plan.main_opcodes, [("replace", 0, 1, 0, 1)])
+
     def test_cell_width_changes_affect_table_alignment_signatures(self):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
@@ -228,6 +256,45 @@ class ExcelDiffEngineTests(unittest.TestCase):
         col_opcodes = diff_plan.tables[0].col_opcodes
 
         self.assertIn(("replace", 0, 1, 0, 1), col_opcodes)
+
+    def test_table_cell_style_changes_affect_table_alignment_signatures(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            tables_before=[
+                [
+                    [
+                        TableCellData(
+                            text="A",
+                            border_signature="top:val=single,sz=8,color=auto",
+                            shading_fill="fill=FFFFFF",
+                            vertical_align="center",
+                            text_direction="lrTb",
+                            nested_table_count=0,
+                        )
+                    ]
+                ]
+            ],
+            tables_after=[
+                [
+                    [
+                        TableCellData(
+                            text="A",
+                            border_signature="top:val=double,sz=8,color=auto",
+                            shading_fill="fill=FFFF00",
+                            vertical_align="bottom",
+                            text_direction="tbRl",
+                            nested_table_count=1,
+                        )
+                    ]
+                ]
+            ],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+        row_opcodes = diff_plan.tables[0].row_opcodes
+
+        self.assertIn(("replace", 0, 1, 0, 1), row_opcodes)
 
 
 if __name__ == "__main__":

@@ -119,6 +119,40 @@ class ExcelReportPipelineTests(unittest.TestCase):
             strings = extract_shared_strings(xlsx_path)
             self.assertIn("같은 문장 [서식 변경]", strings)
 
+    def test_metadata_only_changes_are_marked_in_main_sheet(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "metadata-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                paras_before=[
+                    ParagraphData(
+                        text="구역 1 설정",
+                        source_kind="section",
+                        source_identifier="1",
+                        extra_meta=("pgSz:orient=portrait",),
+                    )
+                ],
+                paras_after=[
+                    ParagraphData(
+                        text="구역 1 설정",
+                        source_kind="section",
+                        source_identifier="1",
+                        extra_meta=("pgSz:orient=landscape",),
+                    )
+                ],
+                flags_b=[False],
+                flags_a=[False],
+                tables_before=[],
+                tables_after=[],
+                get_loc_cb=lambda idx, is_before: "구역 1",
+            )
+
+            strings = extract_shared_strings(xlsx_path)
+            self.assertIn("구역 1 설정 [구조/메타데이터 변경]", strings)
+
 
 if __name__ == "__main__":
     unittest.main()

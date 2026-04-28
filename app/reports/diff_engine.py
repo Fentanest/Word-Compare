@@ -117,7 +117,9 @@ class ExcelDiffEngine:
                 if col_index < len(row):
                     column_signature.append(ExcelDiffEngine._cell_signature(row[col_index]))
                 else:
-                    column_signature.append(("__RHWP_MISSING_CELL__", 0, "__RHWP_MISSING_CELL__", 0, 0, 0))
+                    column_signature.append(
+                        ("__RHWP_MISSING_CELL__", 0, "__RHWP_MISSING_CELL__", 0, 0, 0, "", "", "", "", 0)
+                    )
             signatures.append(tuple(column_signature))
         return signatures
 
@@ -141,5 +143,10 @@ class ExcelDiffEngine:
                 value.cell_width,
                 value.row_height,
                 value.grid_col_width,
+                value.border_signature,
+                value.shading_fill,
+                value.vertical_align,
+                value.text_direction,
+                value.nested_table_count,
             )
-        return (ExcelDiffEngine._normalize_text(value), 1, "", 0, 0, 0)
+        return (ExcelDiffEngine._normalize_text(value), 1, "", 0, 0, 0, "", "", "", "", 0)

@@ -77,3 +77,10 @@
 - Updated the diff engine to align body paragraphs by metadata-aware signatures instead of plain text only.
 - Marked format-only body changes as `[서식 변경]` in the Excel report without adding extra Word COM layout calls.
 - Kept page/line location expansion out of the default path because it would require expensive per-paragraph Word layout queries.
+
+### Batch 8 Details
+- Extended DOCX extraction to parse header/footer text, footnotes, endnotes, comments, revision tags, section settings, text boxes, drawing metadata, and table-level XML metadata from the saved `.docx` package.
+- Added table cell formatting metadata to comparison signatures, including borders, shading, vertical alignment, text direction, and nested-table count.
+- Routed extracted metadata blocks through the existing main diff/report pipeline so structure-only changes show up in Excel as `[구조/메타데이터 변경]`.
+- Added XML-package regression tests to lock in header/footer, notes, comments, revision, section, shape, and table-style coverage.
+- Updated the compare service to reopen source documents specifically for Excel extraction, so tracked changes and comments can still be observed even though the compare pipeline accepts revisions on the comparison documents.

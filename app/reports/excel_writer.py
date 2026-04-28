@@ -37,8 +37,12 @@ class ExcelReportWriter:
                 continue
 
             if content_before == content_after:
-                content_before = self._mark_format_only_change(content_before)
-                content_after = self._mark_format_only_change(content_after)
+                marker = self._change_marker(
+                    diff_plan.filtered_paras_before[i1:i2],
+                    diff_plan.filtered_paras_after[j1:j2],
+                )
+                content_before = self._mark_change(content_before, marker)
+                content_after = self._mark_change(content_after, marker)
 
             rich_before, rich_after = self._get_rich_diff(content_before, content_after, formats)
             worksheet.write(
@@ -254,11 +258,24 @@ class ExcelReportWriter:
         return str(value)
 
     @staticmethod
-    def _mark_format_only_change(text: str) -> str:
+    def _mark_change(text: str, marker: str) -> str:
         stripped = text.strip()
         if stripped:
-            return f"{stripped} [서식 변경]"
-        return "[서식 변경]"
+            return f"{stripped} [{marker}]"
+        return f"[{marker}]"
+
+    @staticmethod
+    def _change_marker(before_paragraphs, after_paragraphs) -> str:
+        paragraph_items = list(before_paragraphs) + list(after_paragraphs)
+        if not paragraph_items:
+            return "서식/구조 변경"
+
+        if all(
+            isinstance(item, ParagraphData) and item.source_kind == "body"
+            for item in paragraph_items
+        ):
+            return "서식 변경"
+        return "구조/메타데이터 변경"
 
     @staticmethod
     def _cell_text(value) -> str:
@@ -267,7 +284,7 @@ class ExcelReportWriter:
         return str(value)
 
     @staticmethod
-    def _cell_signature(value) -> tuple[str, int, str, int, int, int]:
+    def _cell_signature(value) -> tuple[str, int, str, int, int, int, str, str, str, str, int]:
         if isinstance(value, TableCellData):
             return value.signature
-        return (str(value), 1, "", 0, 0, 0)
+        return (str(value), 1, "", 0, 0, 0, "", "", "", "", 0)

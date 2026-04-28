@@ -48,6 +48,8 @@ class WordCompareService:
 
         doc_before = None
         doc_after = None
+        report_doc_before = None
+        report_doc_after = None
         result_doc = None
 
         try:
@@ -85,9 +87,11 @@ class WordCompareService:
                     f"변경내용_{os.path.splitext(original_filename)[0]}.xlsx",
                 )
                 try:
+                    report_doc_before = word_app.Documents.Open(before_path)
+                    report_doc_after = word_app.Documents.Open(after_path)
                     self.excel_report_service.generate(
-                        doc_before,
-                        doc_after,
+                        report_doc_before,
+                        report_doc_after,
                         result_excel_path,
                         log_callback,
                     )
@@ -111,6 +115,10 @@ class WordCompareService:
                 doc_before.Close(SaveChanges=False)
             if doc_after:
                 doc_after.Close(SaveChanges=False)
+            if report_doc_before:
+                report_doc_before.Close(SaveChanges=False)
+            if report_doc_after:
+                report_doc_after.Close(SaveChanges=False)
             if result_doc:
                 result_doc.Close(SaveChanges=False)
 

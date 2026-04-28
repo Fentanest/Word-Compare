@@ -37,6 +37,9 @@ class ExcelReportService:
         )
 
         def get_loc_info(idx, is_before):
+            locations = before_data.paragraph_locations if is_before else after_data.paragraph_locations
+            if locations and 0 <= idx < len(locations):
+                return locations[idx]
             return f"{idx + 1}행"
 
         self.generate_from_extracted_data(
