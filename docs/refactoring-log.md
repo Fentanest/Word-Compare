@@ -90,3 +90,8 @@
 - Added `[성능]` timing logs around Excel extraction, diff-plan calculation, workbook writing, and whole-report generation.
 - Added extractor-internal timing logs for number conversion, temporary DOCX save, `python-docx` load, body/table parsing, XML metadata parsing, and whole extraction.
 - Kept the instrumentation in the existing UI log callback path so real-user runs can be profiled without a separate profiler setup.
+
+### Batch 10 Details
+- Trimmed `main.spec` so only `logo.png` is bundled as runtime data; `logo.ico` remains embedded only as the executable icon.
+- Expanded `excludes` in `main.spec` to drop additional unused PySide6 modules and development-only packages from the PyInstaller bundle.
+- Kept the exclusions aligned with the actual runtime imports, which currently only rely on `QtCore`, `QtGui`, and `QtWidgets`.
