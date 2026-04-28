@@ -3,6 +3,7 @@ from difflib import SequenceMatcher
 
 import xlsxwriter
 
+from app.models import TableCellData
 from app.reports.models import ExcelDiffPlan, ExcelReportInput
 
 
@@ -75,15 +76,17 @@ class ExcelReportWriter:
             )
 
             for row_index, row in enumerate(table_plan.before_table):
-                for col_index, value_before in enumerate(row):
+                for col_index, cell_before in enumerate(row):
                     target_row = row_map_before_to_after.get(row_index)
                     target_col = col_map_before_to_after.get(col_index)
 
+                    value_before = self._cell_text(cell_before)
                     is_changed = True
                     if target_row is not None and target_col is not None:
                         try:
-                            value_after = table_plan.after_table[target_row][target_col]
-                            if value_before == value_after:
+                            cell_after = table_plan.after_table[target_row][target_col]
+                            value_after = self._cell_text(cell_after)
+                            if self._cell_signature(cell_before) == self._cell_signature(cell_after):
                                 is_changed = False
                             else:
                                 rich_before, _ = self._get_rich_diff(value_before, value_after, formats)
@@ -106,15 +109,17 @@ class ExcelReportWriter:
                     )
 
             for row_index, row in enumerate(table_plan.after_table):
-                for col_index, value_after in enumerate(row):
+                for col_index, cell_after in enumerate(row):
                     original_row = row_map_after_to_before.get(row_index)
                     original_col = col_map_after_to_before.get(col_index)
 
+                    value_after = self._cell_text(cell_after)
                     is_changed = True
                     if original_row is not None and original_col is not None:
                         try:
-                            value_before = table_plan.before_table[original_row][original_col]
-                            if value_before == value_after:
+                            cell_before = table_plan.before_table[original_row][original_col]
+                            value_before = self._cell_text(cell_before)
+                            if self._cell_signature(cell_before) == self._cell_signature(cell_after):
                                 is_changed = False
                             else:
                                 _, rich_after = self._get_rich_diff(value_before, value_after, formats)
@@ -233,3 +238,15 @@ class ExcelReportWriter:
     def _log(report_input: ExcelReportInput, message: str) -> None:
         if report_input.log_callback:
             report_input.log_callback(message)
+
+    @staticmethod
+    def _cell_text(value) -> str:
+        if isinstance(value, TableCellData):
+            return value.text
+        return str(value)
+
+    @staticmethod
+    def _cell_signature(value) -> tuple[str, int, str]:
+        if isinstance(value, TableCellData):
+            return value.signature
+        return (str(value), 1, "")

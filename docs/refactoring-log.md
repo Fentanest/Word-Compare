@@ -56,3 +56,13 @@
 ### Batch 3 Details
 - Extracted file-list item creation, sorting, and pair assembly out of `main_window.py`.
 - Added `app/ui/file_list_manager.py` so the main window only coordinates UI events.
+
+### Batch 4 Details
+- Improved table alignment keys from `first-cell / first-row` heuristics to full `row / column` signatures.
+- Added regression tests for row insertion and column insertion where the old heuristic was prone to misalignment.
+
+### Batch 5 Details
+- Added `TableCellData` so extracted table cells can carry merge metadata together with text.
+- Extended the extractor to capture `gridSpan` and `vMerge` from table cell XML properties.
+- Updated table equality/signature logic so merge-structure changes are treated as real changes even when the visible text is the same.
+- Added a regression test covering merge metadata differences.

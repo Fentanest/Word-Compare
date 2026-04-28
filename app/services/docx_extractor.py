@@ -5,7 +5,7 @@ from docx import Document as DocxReader
 from docx.table import Table as _Table
 from docx.text.paragraph import Paragraph as _Paragraph
 
-from app.models import ExtractedDocument
+from app.models import ExtractedDocument, TableCellData
 
 
 class DocxExtractor:
@@ -23,7 +23,7 @@ class DocxExtractor:
             reader = DocxReader(temp_path)
             paragraphs: list[str] = []
             table_flags: list[bool] = []
-            tables: list[list[list[str]]] = []
+            tables: list[list[list[str | TableCellData]]] = []
 
             for child in reader.element.body:
                 if child.tag.endswith("p"):
@@ -35,10 +35,10 @@ class DocxExtractor:
                     paragraphs.append("[TABLE_MARKER]")
                     table_flags.append(True)
 
-                    table_grid: list[list[str]] = []
+                    table_grid: list[list[str | TableCellData]] = []
                     try:
                         for row in table.rows:
-                            row_data = [cell.text.replace("\r", "\n").strip() for cell in row.cells]
+                            row_data = [self._build_cell_data(cell) for cell in row.cells]
                             table_grid.append(row_data)
                         tables.append(table_grid)
                     except Exception as table_error:
@@ -68,3 +68,32 @@ class DocxExtractor:
     def _log(log_callback, message: str) -> None:
         if log_callback:
             log_callback(message)
+
+    @staticmethod
+    def _build_cell_data(cell) -> TableCellData:
+        text = cell.text.replace("\r", "\n").strip()
+        grid_span = 1
+        v_merge = ""
+
+        tc_pr = getattr(cell._tc, "tcPr", None)
+        if tc_pr is not None:
+            grid_span_element = getattr(tc_pr, "gridSpan", None)
+            if grid_span_element is not None:
+                try:
+                    grid_span = int(grid_span_element.val)
+                except (TypeError, ValueError):
+                    grid_span = 1
+
+            v_merge_element = getattr(tc_pr, "vMerge", None)
+            if v_merge_element is not None:
+                v_merge_value = getattr(v_merge_element, "val", None)
+                if v_merge_value is None:
+                    v_merge = "continue"
+                else:
+                    v_merge = str(v_merge_value)
+
+        return TableCellData(
+            text=text,
+            grid_span=grid_span,
+            v_merge=v_merge,
+        )

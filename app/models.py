@@ -31,10 +31,21 @@ class CompareOptions:
 
 
 @dataclass(frozen=True)
+class TableCellData:
+    text: str
+    grid_span: int = 1
+    v_merge: str = ""
+
+    @property
+    def signature(self) -> tuple[str, int, str]:
+        return (self.text, self.grid_span, self.v_merge)
+
+
+@dataclass(frozen=True)
 class ExtractedDocument:
     paragraphs: list[str]
     table_flags: list[bool]
-    tables: list[list[list[str]]]
+    tables: list[list[list[str | TableCellData]]]
 
 
 @dataclass(frozen=True)

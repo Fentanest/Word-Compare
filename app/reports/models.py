@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from typing import Callable
 
+from app.models import TableCellData
+
 
 type Opcode = tuple[str, int, int, int, int]
+type TableCellValue = str | TableCellData
 
 
 @dataclass(frozen=True)
@@ -14,15 +17,15 @@ class ExcelReportInput:
     get_loc_cb: Callable[[int, bool], str] | None = None
     flags_b: list[bool] | None = None
     flags_a: list[bool] | None = None
-    tables_before: list[list[list[str]]] | None = None
-    tables_after: list[list[list[str]]] | None = None
+    tables_before: list[list[list[TableCellValue]]] | None = None
+    tables_after: list[list[list[TableCellValue]]] | None = None
 
 
 @dataclass(frozen=True)
 class TableDiffPlan:
     index: int
-    before_table: list[list[str]]
-    after_table: list[list[str]]
+    before_table: list[list[TableCellValue]]
+    after_table: list[list[TableCellValue]]
     row_opcodes: list[Opcode]
     col_opcodes: list[Opcode]
 

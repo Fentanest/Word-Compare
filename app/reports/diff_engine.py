@@ -1,6 +1,7 @@
 import concurrent.futures
 from difflib import SequenceMatcher
 
+from app.models import TableCellData
 from app.reports.models import ExcelDiffPlan, ExcelReportInput, TableDiffPlan
 
 
@@ -31,14 +32,14 @@ class ExcelDiffEngine:
             after_table = tables_after[table_index] if table_index < len(tables_after) else []
             tasks.append(
                 (
-                    [str(row[0]).strip() if row else "" for row in before_table],
-                    [str(row[0]).strip() if row else "" for row in after_table],
+                    self._build_row_signatures(before_table),
+                    self._build_row_signatures(after_table),
                 )
             )
             tasks.append(
                 (
-                    [str(cell).strip() for cell in before_table[0]] if before_table and before_table[0] else [],
-                    [str(cell).strip() for cell in after_table[0]] if after_table and after_table[0] else [],
+                    self._build_column_signatures(before_table),
+                    self._build_column_signatures(after_table),
                 )
             )
 
@@ -89,3 +90,38 @@ class ExcelDiffEngine:
                 filtered.append(paragraph)
                 indices.append(index)
         return filtered, indices
+
+    @staticmethod
+    def _build_row_signatures(table):
+        signatures = []
+        for row in table:
+            signatures.append(tuple(ExcelDiffEngine._cell_signature(cell) for cell in row))
+        return signatures
+
+    @staticmethod
+    def _build_column_signatures(table):
+        max_cols = max((len(row) for row in table), default=0)
+        signatures = []
+        for col_index in range(max_cols):
+            column_signature = []
+            for row in table:
+                if col_index < len(row):
+                    column_signature.append(ExcelDiffEngine._cell_signature(row[col_index]))
+                else:
+                    column_signature.append(("__RHWP_MISSING_CELL__", 0, "__RHWP_MISSING_CELL__"))
+            signatures.append(tuple(column_signature))
+        return signatures
+
+    @staticmethod
+    def _normalize_text(value):
+        return str(value).replace("\r", "\n").strip()
+
+    @staticmethod
+    def _cell_signature(value):
+        if isinstance(value, TableCellData):
+            return (
+                ExcelDiffEngine._normalize_text(value.text),
+                value.grid_span,
+                value.v_merge,
+            )
+        return (ExcelDiffEngine._normalize_text(value), 1, "")
