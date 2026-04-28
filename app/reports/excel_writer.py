@@ -246,7 +246,7 @@ class ExcelReportWriter:
         return str(value)
 
     @staticmethod
-    def _cell_signature(value) -> tuple[str, int, str]:
+    def _cell_signature(value) -> tuple[str, int, str, int, int, int]:
         if isinstance(value, TableCellData):
             return value.signature
-        return (str(value), 1, "")
+        return (str(value), 1, "", 0, 0, 0)

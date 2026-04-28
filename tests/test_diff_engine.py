@@ -110,6 +110,87 @@ class ExcelDiffEngineTests(unittest.TestCase):
 
         self.assertIn(("replace", 0, 1, 0, 1), row_opcodes)
 
+    def test_cell_width_changes_affect_table_alignment_signatures(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            tables_before=[
+                [
+                    [TableCellData(text="HEADER", cell_width=2400), TableCellData(text="VALUE", cell_width=1800)],
+                    [TableCellData(text="A", cell_width=2400), TableCellData(text="B", cell_width=1800)],
+                ]
+            ],
+            tables_after=[
+                [
+                    [TableCellData(text="HEADER", cell_width=3200), TableCellData(text="VALUE", cell_width=1800)],
+                    [TableCellData(text="A", cell_width=3200), TableCellData(text="B", cell_width=1800)],
+                ]
+            ],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+        col_opcodes = diff_plan.tables[0].col_opcodes
+
+        self.assertIn(("replace", 0, 1, 0, 1), col_opcodes)
+
+    def test_row_height_changes_affect_table_alignment_signatures(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            tables_before=[
+                [
+                    [TableCellData(text="HEADER", row_height=320)],
+                    [TableCellData(text="BODY", row_height=480)],
+                ]
+            ],
+            tables_after=[
+                [
+                    [TableCellData(text="HEADER", row_height=320)],
+                    [TableCellData(text="BODY", row_height=720)],
+                ]
+            ],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+        row_opcodes = diff_plan.tables[0].row_opcodes
+
+        self.assertIn(("replace", 1, 2, 1, 2), row_opcodes)
+
+    def test_table_grid_width_changes_affect_table_alignment_signatures(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            tables_before=[
+                [
+                    [
+                        TableCellData(text="ROW1-A", grid_col_width=1400),
+                        TableCellData(text="ROW1-B", grid_col_width=2200),
+                    ],
+                    [
+                        TableCellData(text="ROW2-A", grid_col_width=1400),
+                        TableCellData(text="ROW2-B", grid_col_width=2200),
+                    ],
+                ]
+            ],
+            tables_after=[
+                [
+                    [
+                        TableCellData(text="ROW1-A", grid_col_width=1800),
+                        TableCellData(text="ROW1-B", grid_col_width=2200),
+                    ],
+                    [
+                        TableCellData(text="ROW2-A", grid_col_width=1800),
+                        TableCellData(text="ROW2-B", grid_col_width=2200),
+                    ],
+                ]
+            ],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+        col_opcodes = diff_plan.tables[0].col_opcodes
+
+        self.assertIn(("replace", 0, 1, 0, 1), col_opcodes)
+
 
 if __name__ == "__main__":
     unittest.main()

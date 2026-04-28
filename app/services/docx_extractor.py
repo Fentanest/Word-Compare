@@ -37,8 +37,17 @@ class DocxExtractor:
 
                     table_grid: list[list[str | TableCellData]] = []
                     try:
+                        grid_widths = self._extract_table_grid_widths(table)
                         for row in table.rows:
-                            row_data = [self._build_cell_data(cell) for cell in row.cells]
+                            row_height = self._extract_row_height(row)
+                            row_data = [
+                                self._build_cell_data(
+                                    cell,
+                                    row_height=row_height,
+                                    grid_col_width=grid_widths[cell_index] if cell_index < len(grid_widths) else 0,
+                                )
+                                for cell_index, cell in enumerate(row.cells)
+                            ]
                             table_grid.append(row_data)
                         tables.append(table_grid)
                     except Exception as table_error:
@@ -70,10 +79,11 @@ class DocxExtractor:
             log_callback(message)
 
     @staticmethod
-    def _build_cell_data(cell) -> TableCellData:
+    def _build_cell_data(cell, row_height: int = 0, grid_col_width: int = 0) -> TableCellData:
         text = cell.text.replace("\r", "\n").strip()
         grid_span = 1
         v_merge = ""
+        cell_width = 0
 
         tc_pr = getattr(cell._tc, "tcPr", None)
         if tc_pr is not None:
@@ -92,8 +102,52 @@ class DocxExtractor:
                 else:
                     v_merge = str(v_merge_value)
 
+            tc_width_element = getattr(tc_pr, "tcW", None)
+            cell_width = DocxExtractor._extract_xml_int_value(tc_width_element, "w")
+
         return TableCellData(
             text=text,
             grid_span=grid_span,
             v_merge=v_merge,
+            cell_width=cell_width,
+            row_height=row_height,
+            grid_col_width=grid_col_width,
         )
+
+    @staticmethod
+    def _extract_table_grid_widths(table) -> list[int]:
+        tbl_grid = getattr(table._tbl, "tblGrid", None)
+        if tbl_grid is None:
+            return []
+
+        grid_cols = getattr(tbl_grid, "gridCol_lst", None) or []
+        return [DocxExtractor._extract_xml_int_value(grid_col, "w") for grid_col in grid_cols]
+
+    @staticmethod
+    def _extract_row_height(row) -> int:
+        tr_pr = getattr(row._tr, "trPr", None)
+        if tr_pr is None:
+            return 0
+
+        tr_height = getattr(tr_pr, "trHeight", None)
+        if isinstance(tr_height, list):
+            tr_height = tr_height[0] if tr_height else None
+        return DocxExtractor._extract_xml_int_value(tr_height, "val")
+
+    @staticmethod
+    def _extract_xml_int_value(element, attribute_name: str) -> int:
+        if element is None:
+            return 0
+
+        try:
+            value = getattr(element, attribute_name)
+        except Exception:
+            value = None
+
+        if value is None:
+            return 0
+
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0

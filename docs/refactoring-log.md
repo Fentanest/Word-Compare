@@ -66,3 +66,8 @@
 - Extended the extractor to capture `gridSpan` and `vMerge` from table cell XML properties.
 - Updated table equality/signature logic so merge-structure changes are treated as real changes even when the visible text is the same.
 - Added a regression test covering merge metadata differences.
+
+### Batch 6 Details
+- Extended `TableCellData` with layout metadata for `tcW`, `trHeight`, and `tblGrid` column widths.
+- Updated the DOCX extractor so table-cell signatures now preserve width and row-height changes from Word XML.
+- Added regression tests covering cell-width, row-height, and table-grid width changes.

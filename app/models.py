@@ -35,10 +35,20 @@ class TableCellData:
     text: str
     grid_span: int = 1
     v_merge: str = ""
+    cell_width: int = 0
+    row_height: int = 0
+    grid_col_width: int = 0
 
     @property
-    def signature(self) -> tuple[str, int, str]:
-        return (self.text, self.grid_span, self.v_merge)
+    def signature(self) -> tuple[str, int, str, int, int, int]:
+        return (
+            self.text,
+            self.grid_span,
+            self.v_merge,
+            self.cell_width,
+            self.row_height,
+            self.grid_col_width,
+        )
 
 
 @dataclass(frozen=True)
