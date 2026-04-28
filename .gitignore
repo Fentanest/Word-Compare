@@ -1,0 +1,9 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local virtual environments
+temp_venv/
+
+# Local helper scripts
+ui.sh
