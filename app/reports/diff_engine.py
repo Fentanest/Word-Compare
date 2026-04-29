@@ -1,7 +1,7 @@
 import concurrent.futures
 from difflib import SequenceMatcher
 
-from app.models import ParagraphData, TableCellData
+from app.models import ParagraphData, TableCellData, normalize_alignment_text
 from app.reports.models import ExcelDiffPlan, ExcelReportInput, TableDiffPlan
 
 
@@ -100,7 +100,7 @@ class ExcelDiffEngine:
     def _build_row_signatures(table):
         signatures = []
         for row in table:
-            signatures.append(tuple(ExcelDiffEngine._cell_signature(cell) for cell in row))
+            signatures.append(tuple(ExcelDiffEngine._cell_alignment_signature(cell) for cell in row))
         return signatures
 
     @staticmethod
@@ -115,7 +115,7 @@ class ExcelDiffEngine:
             column_signature = []
             for row in table:
                 if col_index < len(row):
-                    column_signature.append(ExcelDiffEngine._cell_signature(row[col_index]))
+                    column_signature.append(ExcelDiffEngine._cell_alignment_signature(row[col_index]))
                 else:
                     column_signature.append(
                         ("__RHWP_MISSING_CELL__", 0, "__RHWP_MISSING_CELL__", 0, 0, 0, "", "", "", "", 0)
@@ -126,6 +126,10 @@ class ExcelDiffEngine:
     @staticmethod
     def _normalize_text(value):
         return str(value).replace("\r", "\n").strip()
+
+    @staticmethod
+    def _normalize_alignment_text(value):
+        return normalize_alignment_text(str(value))
 
     @staticmethod
     def _paragraph_signature(value):
@@ -150,3 +154,9 @@ class ExcelDiffEngine:
                 value.nested_table_count,
             )
         return (ExcelDiffEngine._normalize_text(value), 1, "", 0, 0, 0, "", "", "", "", 0)
+
+    @staticmethod
+    def _cell_alignment_signature(value):
+        if isinstance(value, TableCellData):
+            return value.alignment_signature
+        return (ExcelDiffEngine._normalize_alignment_text(value), 1, "", 0, 0, 0, "", "", "", "", 0)

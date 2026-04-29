@@ -2,6 +2,26 @@ import os
 from dataclasses import dataclass
 
 
+def normalize_alignment_text(value: str) -> str:
+    text = str(value).replace("\r", "\n").strip()
+    if not text:
+        return ""
+
+    compact = (
+        text.replace(",", "")
+        .replace(".", "")
+        .replace("%", "")
+        .replace("+", "")
+        .replace("-", "")
+        .replace("(", "")
+        .replace(")", "")
+        .replace(" ", "")
+    )
+    if compact.isdigit():
+        return "__NUMBER__"
+    return text
+
+
 @dataclass(frozen=True)
 class AppSettings:
     save_path: str
@@ -48,6 +68,22 @@ class TableCellData:
     def signature(self) -> tuple[str, int, str, int, int, int, str, str, str, str, int]:
         return (
             self.text,
+            self.grid_span,
+            self.v_merge,
+            self.cell_width,
+            self.row_height,
+            self.grid_col_width,
+            self.border_signature,
+            self.shading_fill,
+            self.vertical_align,
+            self.text_direction,
+            self.nested_table_count,
+        )
+
+    @property
+    def alignment_signature(self) -> tuple[str, int, str, int, int, int, str, str, str, str, int]:
+        return (
+            normalize_alignment_text(self.text),
             self.grid_span,
             self.v_merge,
             self.cell_width,

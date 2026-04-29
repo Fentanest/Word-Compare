@@ -61,6 +61,35 @@ class ExcelDiffEngineTests(unittest.TestCase):
         self.assertIn(("insert", 1, 1, 1, 2), row_opcodes)
         self.assertIn(("equal", 1, 3, 2, 4), row_opcodes)
 
+    def test_row_shift_alignment_tolerates_numeric_deltas_when_text_identity_matches(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            tables_before=[
+                [
+                    ["주주명", "주식수", "지분율"],
+                    ["㈜아이니즈", "10,173", "0.49"],
+                    ["기타 개인투자자", "382,499", "18.26"],
+                    ["합  계", "392,672", "18.75"],
+                ]
+            ],
+            tables_after=[
+                [
+                    ["주주명", "주식수", "지분율"],
+                    ["패스웨이인사이트투자조합22호", "42,940", "2.01"],
+                    ["㈜아이니즈", "10,173", "0.48"],
+                    ["기타 개인투자자", "382,499", "17.88"],
+                    ["합  계", "435,612", "20.37"],
+                ]
+            ],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+        row_opcodes = diff_plan.tables[0].row_opcodes
+
+        self.assertIn(("insert", 1, 1, 1, 2), row_opcodes)
+        self.assertIn(("equal", 1, 4, 2, 5), row_opcodes)
+
     def test_column_shift_alignment_uses_full_column_signature_instead_of_header_only(self):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
