@@ -7,3 +7,7 @@ temp_venv/
 
 # Local helper scripts
 ui.sh
+
+# Native build outputs
+build/native/
+native/docx-structure-extractor/target/

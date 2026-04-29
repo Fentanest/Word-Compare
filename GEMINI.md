@@ -49,7 +49,9 @@
 - [app/services/word_compare_service.py](/home/better0101/projects/word-compare/app/services/word_compare_service.py)
   문서 비교 작업 오케스트레이션
 - [app/services/docx_extractor.py](/home/better0101/projects/word-compare/app/services/docx_extractor.py)
-  Word 문서를 임시 docx로 저장한 뒤 `python-docx`로 문단/표를 추출
+  Word 문서를 임시 docx로 저장한 뒤 native Rust 추출기를 우선 시도하고, 실패하면 `python-docx` 경로로 fallback
+- [app/services/native_docx_extractor.py](/home/better0101/projects/word-compare/app/services/native_docx_extractor.py)
+  Rust CLI 추출기 탐색, 실행, JSON 결과 복원
 
 ### Reports
 
@@ -80,6 +82,7 @@
 4. 문서 추출, diff 계산, Excel 출력은 분리한다.
 5. 생성 파일(`main_ui.py`)은 수정하지 않는다.
 6. 실험 스크립트와 배포 코드는 분리한다.
+7. native Rust 추출기는 선택 성능 경로로 두고, 빌드되지 않았을 때도 Python fallback 으로 정상 동작해야 한다.
 
 ## 리팩터링 진행 상태
 
@@ -97,6 +100,25 @@
 - 패키징 구조 정리
 - 샘플/산출물 정리
 
+## Native Extractor
+
+Rust 추출기 크레이트:
+
+- [native/docx-structure-extractor/Cargo.toml](/home/better0101/projects/word-compare/native/docx-structure-extractor/Cargo.toml)
+- [native/docx-structure-extractor/src/main.rs](/home/better0101/projects/word-compare/native/docx-structure-extractor/src/main.rs)
+
+빌드 스크립트:
+
+- [scripts/build_native_extractor.bat](/home/better0101/projects/word-compare/scripts/build_native_extractor.bat)
+- [scripts/build_native_extractor.sh](/home/better0101/projects/word-compare/scripts/build_native_extractor.sh)
+
+기본 탐색 순서:
+
+1. `WORD_COMPARE_NATIVE_EXTRACTOR`
+2. 번들된 실행 파일
+3. `build/native/word_compare_native_extractor(.exe)`
+4. `native/docx-structure-extractor/target/release/word_compare_native_extractor(.exe)`
+
 ## 수동 검증 체크리스트
 
 작업 후 아래를 확인한다.
@@ -108,3 +130,5 @@
 5. 파일 개수 불일치 시 시작이 막히는지
 6. 비교 결과 docx가 저장되는지
 7. Excel 옵션 켠 상태에서 xlsx가 저장되는지
+8. native 추출기가 있을 때 자동 사용되는지
+9. native 추출기가 없어도 Python fallback 으로 정상 동작하는지

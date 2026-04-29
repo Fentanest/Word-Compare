@@ -4,11 +4,8 @@ import xml.etree.ElementTree as ET
 import zipfile
 from time import perf_counter
 
-from docx import Document as DocxReader
-from docx.table import Table as _Table
-from docx.text.paragraph import Paragraph as _Paragraph
-
 from app.models import ExtractedDocument, ParagraphData, RunData, TableCellData
+from app.services.native_docx_extractor import NativeDocxExtractor
 
 
 class DocxExtractor:
@@ -21,6 +18,9 @@ class DocxExtractor:
     }
     WORD_TAG = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
     XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+
+    def __init__(self, native_extractor: NativeDocxExtractor | None = None):
+        self.native_extractor = native_extractor or NativeDocxExtractor()
 
     def extract_data_hybrid(self, doc, log_callback=None, doc_name: str = "") -> ExtractedDocument:
         try:
@@ -38,71 +38,34 @@ class DocxExtractor:
             doc.SaveAs(os.path.abspath(temp_path), FileFormat=12)
             self._log_perf(log_callback, f"{doc_name} 임시 DOCX 저장", save_started_at)
 
-            reader_started_at = perf_counter()
-            reader = DocxReader(temp_path)
-            self._log_perf(log_callback, f"{doc_name} python-docx 로드", reader_started_at)
-            paragraphs: list[str | ParagraphData] = []
-            table_flags: list[bool] = []
-            tables: list[list[list[str | TableCellData]]] = []
-            paragraph_locations: list[str] = []
+            native_result = self._extract_with_native(temp_path, log_callback, doc_name)
+            if native_result is not None:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
-            body_parse_started_at = perf_counter()
-            for child in reader.element.body:
-                if child.tag.endswith("p"):
-                    paragraph = _Paragraph(child, reader)
-                    paragraphs.append(self._build_paragraph_data(paragraph))
-                    table_flags.append(False)
-                    paragraph_locations.append(f"{len(paragraph_locations) + 1}행")
-                elif child.tag.endswith("tbl"):
-                    table = _Table(child, reader)
-                    paragraphs.append("[TABLE_MARKER]")
-                    table_flags.append(True)
-                    paragraph_locations.append(f"{len(paragraph_locations) + 1}행")
+                metadata_count = sum(
+                    1
+                    for paragraph in native_result.paragraphs
+                    if isinstance(paragraph, ParagraphData) and paragraph.source_kind != "body"
+                )
+                self._log(
+                    log_callback,
+                    f"-> '{doc_name}' 데이터 추출 완료 (표 {len(native_result.tables)}개, 메타데이터 {metadata_count}개 발견)",
+                )
+                self._log_perf(log_callback, f"{doc_name} 추출 전체", total_started_at)
+                return native_result
 
-                    table_grid: list[list[str | TableCellData]] = []
-                    try:
-                        grid_widths = self._extract_table_grid_widths(table)
-                        for row in table.rows:
-                            row_height = self._extract_row_height(row)
-                            row_data = [
-                                self._build_cell_data(
-                                    cell,
-                                    row_height=row_height,
-                                    grid_col_width=grid_widths[cell_index] if cell_index < len(grid_widths) else 0,
-                                )
-                                for cell_index, cell in enumerate(row.cells)
-                            ]
-                            table_grid.append(row_data)
-                        tables.append(table_grid)
-                    except Exception as table_error:
-                        self._log(log_callback, f"-> 표 추출 중 오류: {table_error}")
-                        tables.append([["[데이터 추출 실패]"]])
-            self._log_perf(log_callback, f"{doc_name} 본문/표 파싱", body_parse_started_at)
-
-            metadata_started_at = perf_counter()
-            with zipfile.ZipFile(temp_path) as archive:
-                metadata_blocks, metadata_locations = self._extract_metadata_blocks(archive)
-                paragraphs.extend(metadata_blocks)
-                table_flags.extend([False] * len(metadata_blocks))
-                paragraph_locations.extend(metadata_locations)
-            self._log_perf(log_callback, f"{doc_name} XML 메타데이터 파싱", metadata_started_at)
+            extracted = self._extract_with_python_docx(temp_path, log_callback, doc_name)
 
             try:
                 os.remove(temp_path)
             except OSError:
                 pass
 
-            self._log(
-                log_callback,
-                f"-> '{doc_name}' 데이터 추출 완료 (표 {len(tables)}개, 메타데이터 {len(metadata_blocks)}개 발견)",
-            )
             self._log_perf(log_callback, f"{doc_name} 추출 전체", total_started_at)
-            return ExtractedDocument(
-                paragraphs=paragraphs,
-                table_flags=table_flags,
-                tables=tables,
-                paragraph_locations=paragraph_locations,
-            )
+            return extracted
         except Exception as error:
             self._log(log_callback, f"-> 하이브리드 추출 오류: {error}")
             return ExtractedDocument(
@@ -111,6 +74,80 @@ class DocxExtractor:
                 tables=[],
                 paragraph_locations=[f"{index + 1}행" for index in range(doc.Paragraphs.Count)],
             )
+
+    def _extract_with_native(self, temp_path: str, log_callback, doc_name: str) -> ExtractedDocument | None:
+        native_started_at = perf_counter()
+        extracted = self.native_extractor.extract(temp_path, log_callback)
+        if extracted is None:
+            return None
+        self._log_perf(log_callback, f"{doc_name} Rust 추출 경로", native_started_at)
+        return extracted
+
+    def _extract_with_python_docx(self, temp_path: str, log_callback, doc_name: str) -> ExtractedDocument:
+        from docx import Document as DocxReader
+        from docx.table import Table as _Table
+        from docx.text.paragraph import Paragraph as _Paragraph
+
+        reader_started_at = perf_counter()
+        reader = DocxReader(temp_path)
+        self._log_perf(log_callback, f"{doc_name} python-docx 로드", reader_started_at)
+
+        paragraphs: list[str | ParagraphData] = []
+        table_flags: list[bool] = []
+        tables: list[list[list[str | TableCellData]]] = []
+        paragraph_locations: list[str] = []
+
+        body_parse_started_at = perf_counter()
+        for child in reader.element.body:
+            if child.tag.endswith("p"):
+                paragraph = _Paragraph(child, reader)
+                paragraphs.append(self._build_paragraph_data(paragraph))
+                table_flags.append(False)
+                paragraph_locations.append(f"{len(paragraph_locations) + 1}행")
+            elif child.tag.endswith("tbl"):
+                table = _Table(child, reader)
+                paragraphs.append("[TABLE_MARKER]")
+                table_flags.append(True)
+                paragraph_locations.append(f"{len(paragraph_locations) + 1}행")
+
+                table_grid: list[list[str | TableCellData]] = []
+                try:
+                    grid_widths = self._extract_table_grid_widths(table)
+                    for row in table.rows:
+                        row_height = self._extract_row_height(row)
+                        row_data = [
+                            self._build_cell_data(
+                                cell,
+                                row_height=row_height,
+                                grid_col_width=grid_widths[cell_index] if cell_index < len(grid_widths) else 0,
+                            )
+                            for cell_index, cell in enumerate(row.cells)
+                        ]
+                        table_grid.append(row_data)
+                    tables.append(table_grid)
+                except Exception as table_error:
+                    self._log(log_callback, f"-> 표 추출 중 오류: {table_error}")
+                    tables.append([["[데이터 추출 실패]"]])
+        self._log_perf(log_callback, f"{doc_name} 본문/표 파싱", body_parse_started_at)
+
+        metadata_started_at = perf_counter()
+        with zipfile.ZipFile(temp_path) as archive:
+            metadata_blocks, metadata_locations = self._extract_metadata_blocks(archive)
+            paragraphs.extend(metadata_blocks)
+            table_flags.extend([False] * len(metadata_blocks))
+            paragraph_locations.extend(metadata_locations)
+        self._log_perf(log_callback, f"{doc_name} XML 메타데이터 파싱", metadata_started_at)
+
+        self._log(
+            log_callback,
+            f"-> '{doc_name}' 데이터 추출 완료 (표 {len(tables)}개, 메타데이터 {len(metadata_blocks)}개 발견)",
+        )
+        return ExtractedDocument(
+            paragraphs=paragraphs,
+            table_flags=table_flags,
+            tables=tables,
+            paragraph_locations=paragraph_locations,
+        )
 
     @staticmethod
     def _log(log_callback, message: str) -> None:

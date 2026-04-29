@@ -27,7 +27,13 @@ class WordSession:
         except Exception:
             pass
 
-        self.word_app.Quit(SaveChanges=False)
+        try:
+            self.word_app.Quit(SaveChanges=False)
+        except Exception:
+            # Word sometimes tears down the COM connection before Quit returns.
+            # The compare work is already done at this point, so shutdown noise
+            # should not be surfaced as a user-facing failure.
+            pass
 
     @staticmethod
     def ensure_hidden(word_app) -> None:

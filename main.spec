@@ -1,9 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+project_dir = Path(SPECPATH)
+native_binary_name = 'word_compare_native_extractor.exe'
+native_binary_path = project_dir / 'build' / 'native' / native_binary_name
+native_binaries = []
+if native_binary_path.exists():
+    native_binaries.append((str(native_binary_path), '.'))
+
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=native_binaries,
     # `logo.png` is used at runtime for the window icon.
     # `logo.ico` is only needed as the embedded executable icon below.
     datas=[('logo.png', '.')],

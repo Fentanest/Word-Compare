@@ -51,6 +51,48 @@
 
 -   **운영체제**: Windows
 -   **필수 소프트웨어**: Microsoft Word
+-   **선택 성능 구성요소**: Rust toolchain (`cargo`)  
+    빠른 DOCX 추출기를 빌드하면 Excel 보고서 생성 속도를 줄일 수 있습니다.
+
+## Rust 추출기 빌드
+
+기본 동작은 Python 추출기입니다.  
+아래 Rust 추출기를 빌드해 두면 프로그램이 자동으로 native 추출기를 먼저 시도하고, 실패하면 Python 추출기로 자동 fallback 합니다.
+
+### Windows
+
+```bat
+scripts\build_native_extractor.bat
+```
+
+성공하면 다음 파일이 생성됩니다.
+
+- `build\native\word_compare_native_extractor.exe`
+
+### macOS / Linux 개발 셸
+
+```bash
+./scripts/build_native_extractor.sh
+```
+
+### 수동 빌드
+
+```bash
+cargo build --manifest-path native/docx-structure-extractor/Cargo.toml --release
+```
+
+직접 경로를 지정하고 싶으면 환경변수를 사용할 수 있습니다.
+
+```bat
+set WORD_COMPARE_NATIVE_EXTRACTOR=C:\path\to\word_compare_native_extractor.exe
+```
+
+프로그램은 다음 순서로 native 추출기를 찾습니다.
+
+1. `WORD_COMPARE_NATIVE_EXTRACTOR`
+2. 번들된 실행 파일 경로
+3. `build/native/word_compare_native_extractor(.exe)`
+4. `native/docx-structure-extractor/target/release/word_compare_native_extractor(.exe)`
 
 ## 사용 방법
 
@@ -61,3 +103,17 @@
 5.  상세 분석 보고서를 받으려면 **'엑셀 보고서 생성'** 체크박스를 선택합니다.
 6.  **'비교 시작'** 버튼을 클릭하여 작업을 시작합니다.
 7.  작업이 완료되면 지정된 저장 경로에서 결과 파일(`비교_결과_...docx`, `변경내용_....xlsx`)을 확인할 수 있습니다.
+
+## 성능 로그
+
+최근 버전은 UI 로그 창에 `[성능]` 접두사로 단계별 소요시간을 남깁니다.
+
+- Word 문서 열기
+- Word 비교
+- 결과 저장
+- Excel용 원본 재열기
+- 문서 추출
+- diff 계획 계산
+- Excel 파일 쓰기
+
+이 수치를 기준으로 native 추출기 적용 전후를 비교하면 병목이 어디인지 빠르게 판단할 수 있습니다.

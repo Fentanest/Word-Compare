@@ -95,3 +95,9 @@
 - Trimmed `main.spec` so only `logo.png` is bundled as runtime data; `logo.ico` remains embedded only as the executable icon.
 - Expanded `excludes` in `main.spec` to drop additional unused PySide6 modules and development-only packages from the PyInstaller bundle.
 - Kept the exclusions aligned with the actual runtime imports, which currently only rely on `QtCore`, `QtGui`, and `QtWidgets`.
+
+### Batch 11 Details
+- Added a Rust native extractor crate under `native/docx-structure-extractor/` that parses DOCX package XML and emits structured JSON for body paragraphs, tables, and metadata blocks.
+- Added `app/services/native_docx_extractor.py` so Python can discover the native binary, execute it, and hydrate the result back into the existing dataclasses.
+- Updated `DocxExtractor` to try the native path first and fall back to the existing `python-docx` path automatically when the binary is missing or fails.
+- Added build scripts for Windows and POSIX shells, plus PyInstaller wiring to bundle `build/native/word_compare_native_extractor.exe` when present.
