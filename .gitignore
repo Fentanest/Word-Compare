@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 
 # Local virtual environments
+venv/
 temp_venv/
 
 # Local helper scripts
@@ -10,4 +11,8 @@ ui.sh
 
 # Native build outputs
 build/native/
+build/main/
+build/WordCompare/
+build/package/
+dist/
 native/docx-structure-extractor/target/

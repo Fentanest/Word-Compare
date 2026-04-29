@@ -1,4 +1,4 @@
-name: Build Windows Executable
+name: Build And Release Packages
 
 on:
   workflow_dispatch:
@@ -7,147 +7,141 @@ on:
       - main
 
 jobs:
-  build-and-release-windows:
-    runs-on: [self-hosted, Windows, X64, 230]
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    permissions:
-      contents: write
-
+  metadata:
+    name: Resolve Version And Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      tag_exists: ${{ steps.tag_check.outputs.tag_exists }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v6
       with:
-        fetch-depth: 0 
-
-    - name: Get version from version.py
-      id: get_version
-      shell: powershell
-      run: |
-        $versionString = (Get-Content version.py -Raw) -match '__version__ = "(.+)"' | ForEach-Object { $matches[1] }
-        if (-not $versionString) {
-          Write-Error "version.py에서 __version__을 찾을 수 없습니다."
-          exit 1
-        }
-        echo "version=$versionString" >> $env:GITHUB_OUTPUT
-        echo "tag=v$versionString" >> $env:GITHUB_OUTPUT
-        Write-Output "Detected version: $versionString, tag: v$versionString"
-
-    - name: Check if tag already exists
-      id: check_tag
-      shell: powershell
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG_NAME: ${{ steps.get_version.outputs.tag }}
-      run: |
-        $headers = @{
-          "Authorization" = "token $env:GITHUB_TOKEN"
-          "Accept" = "application/vnd.github.v3+json"
-        }
-        $url = "https://api.github.com/repos/${{ github.repository }}/git/ref/tags/$env:TAG_NAME"
-        try {
-          $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
-          echo "tag_exists=true" >> $env:GITHUB_OUTPUT
-          Write-Output "Tag $env:TAG_NAME already exists. Skipping build."
-        }
-        catch {
-          if ($_.Exception.Response.StatusCode -eq 404) {
-            echo "tag_exists=false" >> $env:GITHUB_OUTPUT
-            Write-Output "Tag $env:TAG_NAME does not exist. Proceeding with build."
-          } else {
-            Write-Error "Failed to check tag: $($_.Exception.Message)"
-            exit 1
-          }
-        }
-    - name: Clean previous build artifacts
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      shell: powershell
-      run: |
-        Remove-Item -Path "venv", "build", "dist" -Recurse -Force -ErrorAction SilentlyContinue
+        fetch-depth: 0
 
     - name: Set up Python
-      if: steps.check_tag.outputs.tag_exists == 'false'
       uses: actions/setup-python@v6
       with:
         python-version: '3.14'
 
-    - name: Create and populate virtual environment
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      shell: powershell
+    - name: Resolve version
+      id: version
+      shell: bash
       run: |
-        python -m venv venv
-        .\venv\Scripts\python.exe -m pip install --upgrade pip
-        .\venv\Scripts\pip.exe install -r requirements.txt
-        .\venv\Scripts\pip.exe install pyinstaller
+        VERSION="$(python -c "from version import __version__; print(__version__)")"
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "Resolved version ${VERSION}"
 
-    - name: Run unit tests
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      shell: powershell
-      run: .\venv\Scripts\python.exe -m unittest discover -s tests -v
-
-    - name: Setup UPX 5.1.0
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      id: setup_upx
-      shell: powershell
+    - name: Check if tag already exists
+      id: tag_check
+      shell: bash
       run: |
-        $version = "5.1.0"
-        $upxExtractDir = "${env:TEMP}\upx"
-        $upxDir = Join-Path $upxExtractDir "upx-${version}-win64"
-        $upxPath = Join-Path $upxDir "upx.exe"
-        $zipPath = "${env:TEMP}\upx-${version}-win64.zip"
-        $downloadUrl = "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-win64.zip"
+        git fetch --tags --force
+        if git show-ref --tags --verify --quiet "refs/tags/${{ steps.version.outputs.tag }}"; then
+          echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          echo "Tag ${{ steps.version.outputs.tag }} already exists. Skipping package build."
+        else
+          echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          echo "Tag ${{ steps.version.outputs.tag }} does not exist. Proceeding with package build."
+        fi
 
-        if (-not (Test-Path $upxPath)) {
-          if (Test-Path $upxExtractDir) { Remove-Item -Recurse -Force $upxExtractDir }
-          Write-Output "Downloading UPX $version from $downloadUrl"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
-          Expand-Archive -Path $zipPath -DestinationPath $upxExtractDir -Force
-        }
-        
-        if (-not (Test-Path $upxPath)) {
-          Write-Error "UPX executable not found at $upxPath after download/extract."
-          exit 1
-        }
+  build-windows:
+    name: Build Windows Package
+    needs: metadata
+    if: needs.metadata.outputs.tag_exists != 'true'
+    runs-on: [self-hosted, Windows, X64, 230]
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
 
-        Write-Output "Found UPX at: $upxPath"
-        echo "upx_path=$upxPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
 
-    - name: Verify UPX version
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      shell: powershell
-      run: |
-        Write-Output "Verifying UPX with path: ${{ steps.setup_upx.outputs.upx_path }}"
-        & "${{ steps.setup_upx.outputs.upx_path }}" --version
+    - name: Set up Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
 
-    - name: Build executable with PyInstaller (only if new version)
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      shell: powershell
-      run: .\venv\Scripts\pyinstaller.exe main.spec
+    - name: Build packaged application
+      shell: cmd
+      run: scripts\build_app.bat
 
-    - name: Compress executable with UPX (only if new version)
-      if: steps.check_tag.outputs.tag_exists == 'false'
-      shell: powershell
-      run: |
-        Write-Output "Compressing with UPX: ${{ steps.setup_upx.outputs.upx_path }}"
-        & "${{ steps.setup_upx.outputs.upx_path }}" --best --lzma --force dist/WordCompare.exe
-
-    - name: Upload executable as an artifact (only if new version)
-      if: steps.check_tag.outputs.tag_exists == 'false'
+    - name: Upload packaged Windows artifact
       uses: actions/upload-artifact@v7
       with:
-        name: WordCompare-Windows-${{ steps.get_version.outputs.version }}
-        path: dist/WordCompare.exe
+        name: WordCompare-Windows-${{ needs.metadata.outputs.version }}
+        path: build/package/WordCompare-Windows-${{ needs.metadata.outputs.version }}.zip
 
-    - name: Create GitHub Release (only if new version)
-      if: steps.check_tag.outputs.tag_exists == 'false'
+  build-linux:
+    name: Build Linux Package
+    needs: metadata
+    if: needs.metadata.outputs.tag_exists != 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
+
+    - name: Set up Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Linux packaging dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libxcb-cursor0
+
+    - name: Build packaged application
+      shell: bash
+      run: bash scripts/build_app.sh
+
+    - name: Upload packaged Linux artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: WordCompare-Linux-${{ needs.metadata.outputs.version }}
+        path: build/package/WordCompare-Linux-${{ needs.metadata.outputs.version }}.tar.gz
+
+  release:
+    name: Create Release
+    needs: [metadata, build-windows, build-linux]
+    if: needs.metadata.outputs.tag_exists != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v5
+      with:
+        name: WordCompare-Windows-${{ needs.metadata.outputs.version }}
+        path: release-assets
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v5
+      with:
+        name: WordCompare-Linux-${{ needs.metadata.outputs.version }}
+        path: release-assets
+
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2.5.0
       with:
-        tag_name: v${{ steps.get_version.outputs.version }}
-        name: "Word Compare Tool v${{ steps.get_version.outputs.version }}"
+        tag_name: ${{ needs.metadata.outputs.tag }}
+        name: "Word Compare Tool ${{ needs.metadata.outputs.tag }}"
         body: |
-          Automated release of Word Compare Tool v${{ steps.get_version.outputs.version }}.
+          Automated release of Word Compare Tool ${{ needs.metadata.outputs.tag }}.
           Commit: ${{ github.sha }}
-        files: dist/WordCompare.exe
+        files: release-assets/*
         draft: false
         prerelease: false
         generate_release_notes: true

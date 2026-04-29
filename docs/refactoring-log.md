@@ -101,3 +101,10 @@
 - Added `app/services/native_docx_extractor.py` so Python can discover the native binary, execute it, and hydrate the result back into the existing dataclasses.
 - Updated `DocxExtractor` to try the native path first and fall back to the existing `python-docx` path automatically when the binary is missing or fails.
 - Added build scripts for Windows and POSIX shells, plus PyInstaller wiring to bundle `build/native/word_compare_native_extractor.exe` when present.
+
+### Batch 12 Details
+- Made `main.spec` platform-aware so Linux packaging can bundle `word_compare_native_extractor` while Windows packaging still bundles `word_compare_native_extractor.exe`.
+- Added one-command app packaging scripts for Windows and POSIX shells that build the Rust extractor, install Python dependencies, run tests, package with PyInstaller, and archive the final deliverable.
+- Restructured GitHub Actions into separate `metadata`, per-platform package build, and `release` jobs so tag checks and release creation are isolated from the actual build work.
+- Added ignore rules for generated virtual environments and package artifacts.
+- Suppressed harmless Word COM shutdown disconnect errors so completed compare runs do not surface a false failure during teardown.

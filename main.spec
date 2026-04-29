@@ -1,9 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import sys
 
 project_dir = Path(SPECPATH)
-native_binary_name = 'word_compare_native_extractor.exe'
+is_windows = sys.platform.startswith('win')
+native_binary_name = 'word_compare_native_extractor.exe' if is_windows else 'word_compare_native_extractor'
 native_binary_path = project_dir / 'build' / 'native' / native_binary_name
 native_binaries = []
 if native_binary_path.exists():
@@ -89,25 +91,31 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+exe_kwargs = {
+    'name': 'WordCompare',
+    'debug': False,
+    'bootloader_ignore_signals': False,
+    'strip': False,
+    'upx': True,
+    'upx_exclude': [],
+    'runtime_tmpdir': None,
+    'console': False,
+    'disable_windowed_traceback': False,
+    'argv_emulation': False,
+    'target_arch': None,
+    'codesign_identity': None,
+    'entitlements_file': None,
+}
+
+if is_windows:
+    exe_kwargs['icon'] = 'logo.ico'
+    exe_kwargs['ldflags'] = '/guard:cf-'
+
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
     a.datas,
     [],
-    name='WordCompare',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon='logo.ico',
-    **{'ldflags': '/guard:cf-'}
+    **exe_kwargs,
 )

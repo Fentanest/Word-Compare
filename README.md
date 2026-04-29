@@ -72,7 +72,7 @@ scripts\build_native_extractor.bat
 ### macOS / Linux 개발 셸
 
 ```bash
-./scripts/build_native_extractor.sh
+bash scripts/build_native_extractor.sh
 ```
 
 ### 수동 빌드
@@ -93,6 +93,65 @@ set WORD_COMPARE_NATIVE_EXTRACTOR=C:\path\to\word_compare_native_extractor.exe
 2. 번들된 실행 파일 경로
 3. `build/native/word_compare_native_extractor(.exe)`
 4. `native/docx-structure-extractor/target/release/word_compare_native_extractor(.exe)`
+
+## 전체 앱 패키징
+
+Rust 추출기 빌드, Python 의존성 설치, 테스트, PyInstaller 패키징, 최종 압축 산출물 생성까지 한 번에 수행하는 스크립트를 제공합니다.
+
+### Windows
+
+```bat
+scripts\build_app.bat
+```
+
+성공하면 다음 파일이 생성됩니다.
+
+- `build\package\WordCompare-Windows-<version>.zip`
+
+### macOS / Linux 개발 셸
+
+```bash
+bash scripts/build_app.sh
+```
+
+성공하면 다음 파일이 생성됩니다.
+
+- `build/package/WordCompare-Linux-<version>.tar.gz`
+
+Qt 기반 Linux 패키징은 빌드 머신에 `libxcb-cursor0`가 있으면 더 안정적입니다.  
+GitHub Actions는 이 의존성을 workflow에서 자동 설치합니다.
+
+기본적으로 두 스크립트는 아래 순서로 동작합니다.
+
+1. 이전 `dist`, 패키지, 임시 빌드 산출물 정리
+2. 가상환경 생성
+3. `requirements.txt` 및 `pyinstaller` 설치
+4. Rust native 추출기 빌드
+5. Python 테스트 실행
+6. `main.spec` 기준 PyInstaller 빌드
+7. 사용자 배포용 압축 파일 생성
+
+원하는 Python 실행 파일을 강제로 지정하려면 환경변수를 사용할 수 있습니다.
+
+```bat
+set PYTHON_EXE=py -3.14
+scripts\build_app.bat
+```
+
+```bash
+PYTHON_BIN=python3.14 bash scripts/build_app.sh
+```
+
+## GitHub Actions 릴리즈 흐름
+
+`.github/workflows/build.yml`은 다음 순서로 동작합니다.
+
+1. 버전과 태그를 확인하는 `metadata` 잡
+2. Rust + Python 전체 패키징을 수행하는 `build-windows` 잡
+3. Rust + Python 전체 패키징을 수행하는 `build-linux` 잡
+4. 두 아티팩트를 묶어 GitHub Release를 생성하는 `release` 잡
+
+이미 같은 버전 태그가 있으면 빌드와 릴리즈는 자동으로 건너뜁니다.
 
 ## 사용 방법
 

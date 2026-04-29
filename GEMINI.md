@@ -111,6 +111,8 @@ Rust 추출기 크레이트:
 
 - [scripts/build_native_extractor.bat](/home/better0101/projects/word-compare/scripts/build_native_extractor.bat)
 - [scripts/build_native_extractor.sh](/home/better0101/projects/word-compare/scripts/build_native_extractor.sh)
+- [scripts/build_app.bat](/home/better0101/projects/word-compare/scripts/build_app.bat)
+- [scripts/build_app.sh](/home/better0101/projects/word-compare/scripts/build_app.sh)
 
 기본 탐색 순서:
 
@@ -118,6 +120,15 @@ Rust 추출기 크레이트:
 2. 번들된 실행 파일
 3. `build/native/word_compare_native_extractor(.exe)`
 4. `native/docx-structure-extractor/target/release/word_compare_native_extractor(.exe)`
+
+## Packaging
+
+- `scripts/build_app.bat`
+  Windows에서 Rust native 추출기 빌드, Python 테스트, PyInstaller 실행, 최종 zip 패키지 생성을 한 번에 수행한다.
+- `scripts/build_app.sh`
+  POSIX 셸 환경에서 동일한 흐름으로 최종 `tar.gz` 패키지를 만든다.
+- `.github/workflows/build.yml`
+  `metadata -> build-windows/build-linux -> release` 구조로 분리되어 있고, 같은 버전 태그가 이미 있으면 패키징과 릴리즈를 건너뛴다.
 
 ## 수동 검증 체크리스트
 
@@ -132,3 +143,4 @@ Rust 추출기 크레이트:
 7. Excel 옵션 켠 상태에서 xlsx가 저장되는지
 8. native 추출기가 있을 때 자동 사용되는지
 9. native 추출기가 없어도 Python fallback 으로 정상 동작하는지
+10. `scripts/build_app.*`가 최종 배포 패키지를 생성하는지
