@@ -44,7 +44,19 @@ echo [build_app] Building PyInstaller package
 "%VENV_DIR%\Scripts\pyinstaller.exe" main.spec
 if errorlevel 1 exit /b %errorlevel%
 
-for /f %%i in ('"%VENV_DIR%\Scripts\python.exe" -c "from version import __version__; print(__version__)"') do set "VERSION=%%i"
+set "VERSION_FILE=%TEMP%\word_compare_version.txt"
+"%VENV_DIR%\Scripts\python.exe" -c "from version import __version__; print(__version__)" > "%VERSION_FILE%"
+if errorlevel 1 exit /b %errorlevel%
+
+set "VERSION="
+set /p VERSION=<"%VERSION_FILE%"
+del /f /q "%VERSION_FILE%" >nul 2>&1
+
+if not defined VERSION (
+  echo [build_app] Failed to resolve version from version.py
+  exit /b 1
+)
+
 set "PACKAGE_NAME=WordCompare-Windows-%VERSION%"
 set "PACKAGE_ROOT=%PACKAGE_DIR%\%PACKAGE_NAME%"
 set "PACKAGE_ARCHIVE=%PACKAGE_DIR%\%PACKAGE_NAME%.zip"
