@@ -156,7 +156,7 @@ class DocxExtractor:
 
     @staticmethod
     def _log_perf(log_callback, label: str, started_at: float) -> None:
-        DocxExtractor._log(log_callback, f"[성능] {label}: {perf_counter() - started_at:.3f}초")
+        DocxExtractor._log(log_callback, f"{label}: {perf_counter() - started_at:.3f}초")
 
     @staticmethod
     def _build_cell_data(cell, row_height: int = 0, grid_col_width: int = 0) -> TableCellData:

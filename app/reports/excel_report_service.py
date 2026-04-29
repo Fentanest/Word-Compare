@@ -28,23 +28,19 @@ class ExcelReportService:
             raise RuntimeError("문서 추출기가 없어 generate()를 사용할 수 없습니다.")
 
         total_started_at = perf_counter()
-        self._log(log_callback, f"[성능] Excel 보고서 시작: {excel_save_path}")
+        self._log(log_callback, f"Excel 보고서 시작: {excel_save_path}")
 
-        before_extract_started_at = perf_counter()
         before_data = self.extractor.extract_data_hybrid(
             before_doc,
             log_callback,
             "수정 전 문서",
         )
-        self._log_perf(log_callback, "수정 전 문서 추출", before_extract_started_at)
 
-        after_extract_started_at = perf_counter()
         after_data = self.extractor.extract_data_hybrid(
             after_doc,
             log_callback,
             "수정 후 문서",
         )
-        self._log_perf(log_callback, "수정 후 문서 추출", after_extract_started_at)
 
         def get_loc_info(idx, is_before):
             locations = before_data.paragraph_locations if is_before else after_data.paragraph_locations
@@ -106,4 +102,4 @@ class ExcelReportService:
 
     @staticmethod
     def _log_perf(log_callback, label: str, started_at: float) -> None:
-        ExcelReportService._log(log_callback, f"[성능] {label}: {perf_counter() - started_at:.3f}초")
+        ExcelReportService._log(log_callback, f"{label}: {perf_counter() - started_at:.3f}초")

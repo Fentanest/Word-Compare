@@ -19,7 +19,7 @@ class WordCompareService:
         results: list[CompareResult] = []
         total_started_at = perf_counter()
         self._log(log_callback, "비교 작업을 시작합니다...")
-        self._log(log_callback, f"[성능] 비교 대상 {len(file_pairs)}건")
+        self._log(log_callback, f"비교 대상 {len(file_pairs)}건")
 
         try:
             word_session_started_at = perf_counter()
@@ -131,16 +131,11 @@ class WordCompareService:
                 error=str(error),
             )
         finally:
-            if doc_before:
-                doc_before.Close(SaveChanges=False)
-            if doc_after:
-                doc_after.Close(SaveChanges=False)
-            if report_doc_before:
-                report_doc_before.Close(SaveChanges=False)
-            if report_doc_after:
-                report_doc_after.Close(SaveChanges=False)
-            if result_doc:
-                result_doc.Close(SaveChanges=False)
+            self._safe_close_document(doc_before)
+            self._safe_close_document(doc_after)
+            self._safe_close_document(report_doc_before)
+            self._safe_close_document(report_doc_after)
+            self._safe_close_document(result_doc)
 
     @staticmethod
     def _log(log_callback, message: str) -> None:
@@ -149,4 +144,16 @@ class WordCompareService:
 
     @staticmethod
     def _log_perf(log_callback, label: str, started_at: float) -> None:
-        WordCompareService._log(log_callback, f"[성능] {label}: {perf_counter() - started_at:.3f}초")
+        WordCompareService._log(log_callback, f"{label}: {perf_counter() - started_at:.3f}초")
+
+    @staticmethod
+    def _safe_close_document(document) -> None:
+        if not document:
+            return
+        try:
+            document.Close(SaveChanges=False)
+        except Exception:
+            # Word may tear down COM-backed document proxies during shutdown or
+            # after compare/save operations. Cleanup noise should not be treated
+            # as a user-facing compare failure.
+            pass

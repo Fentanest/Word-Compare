@@ -162,4 +162,4 @@ class NativeDocxExtractor:
 
     @staticmethod
     def _log_perf(log_callback, label: str, started_at: float) -> None:
-        NativeDocxExtractor._log(log_callback, f"[성능] {label}: {perf_counter() - started_at:.3f}초")
+        NativeDocxExtractor._log(log_callback, f"{label}: {perf_counter() - started_at:.3f}초")

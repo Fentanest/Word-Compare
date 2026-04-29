@@ -86,8 +86,8 @@
 - Updated the compare service to reopen source documents specifically for Excel extraction, so tracked changes and comments can still be observed even though the compare pipeline accepts revisions on the comparison documents.
 
 ### Batch 9 Details
-- Added `[성능]` timing logs around Word session startup, document open, revision normalization, Word compare, result save, Excel source reopen, and whole-file processing.
-- Added `[성능]` timing logs around Excel extraction, diff-plan calculation, workbook writing, and whole-report generation.
+- Added timing logs around Word session startup, document open, revision normalization, Word compare, result save, Excel source reopen, and whole-file processing.
+- Added timing logs around Excel extraction, diff-plan calculation, workbook writing, and whole-report generation.
 - Added extractor-internal timing logs for number conversion, temporary DOCX save, `python-docx` load, body/table parsing, XML metadata parsing, and whole extraction.
 - Kept the instrumentation in the existing UI log callback path so real-user runs can be profiled without a separate profiler setup.
 

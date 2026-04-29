@@ -165,7 +165,7 @@ PYTHON_BIN=python3.14 bash scripts/build_app.sh
 
 ## 성능 로그
 
-최근 버전은 UI 로그 창에 `[성능]` 접두사로 단계별 소요시간을 남깁니다.
+최근 버전은 UI 로그 창에 단계별 소요시간을 남깁니다.
 
 - Word 문서 열기
 - Word 비교
