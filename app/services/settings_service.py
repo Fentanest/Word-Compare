@@ -16,10 +16,12 @@ class SettingsService:
 
         author = self.settings.value("author", "")
         excel_checked = self.settings.value("excelChecked", "true") == "true"
+        format_compare_enabled = self.settings.value("formatCompareEnabled", "false") == "true"
         return AppSettings(
             save_path=save_path,
             author=author,
             excel_checked=excel_checked,
+            format_compare_enabled=format_compare_enabled,
         )
 
     def save(self, app_settings: AppSettings) -> None:
@@ -28,5 +30,9 @@ class SettingsService:
         self.settings.setValue(
             "excelChecked",
             "true" if app_settings.excel_checked else "false",
+        )
+        self.settings.setValue(
+            "formatCompareEnabled",
+            "true" if app_settings.format_compare_enabled else "false",
         )
         self.settings.sync()

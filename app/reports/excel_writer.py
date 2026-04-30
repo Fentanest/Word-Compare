@@ -22,10 +22,14 @@ class ExcelReportWriter:
 
     def _write_main_sheet(self, workbook, formats, report_input: ExcelReportInput, diff_plan: ExcelDiffPlan) -> None:
         worksheet = workbook.add_worksheet("변경 내용(일반)")
-        worksheet.write_row("A1", ["위치", "수정 전", "수정 후", "서식 변경"], formats["header"])
+        headers = ["위치", "수정 전", "수정 후"]
+        if report_input.compare_formatting:
+            headers.append("서식 변경")
+        worksheet.write_row("A1", headers, formats["header"])
         worksheet.set_column("A:A", 25, formats["loc"])
         worksheet.set_column("B:C", 60, formats["default"])
-        worksheet.set_column("D:D", 12, formats["marker"])
+        if report_input.compare_formatting:
+            worksheet.set_column("D:D", 12, formats["marker"])
         worksheet.freeze_panes(1, 0)
 
         excel_row = 1
@@ -43,8 +47,10 @@ class ExcelReportWriter:
                     diff_plan.filtered_paras_before[i1:i2],
                     diff_plan.filtered_paras_after[j1:j2],
                 )
-                if marker == "서식 변경":
+                if marker == "서식 변경" and report_input.compare_formatting:
                     style_changed = True
+                elif marker == "서식 변경":
+                    continue
                 else:
                     content_before = self._mark_change(content_before, marker)
                     content_after = self._mark_change(content_after, marker)
@@ -69,18 +75,36 @@ class ExcelReportWriter:
                     plain_text,
                     formats,
                 )
-            worksheet.write(excel_row, 3, "O" if style_changed else "", formats["marker"])
+            if report_input.compare_formatting:
+                worksheet.write(excel_row, 3, "O" if style_changed else "", formats["marker"])
             excel_row += 1
 
     def _write_table_sheets(self, workbook, formats, diff_plan: ExcelDiffPlan) -> None:
         for table_plan in diff_plan.tables:
-            sheet_name = f"표 {table_plan.index + 1}"
+            sheet_name = self._table_sheet_name(table_plan)
             worksheet = workbook.add_worksheet(sheet_name[:31])
 
             max_cols_before = max((len(row) for row in table_plan.before_table), default=0)
-            after_start_col = max_cols_before + 1 if max_cols_before > 0 else 0
-            worksheet.write(0, 0, "수정 전", formats["header"])
-            worksheet.write(0, after_start_col, "수정 후", formats["header"])
+            before_width = max(1, max_cols_before)
+            after_start_col = before_width + 1
+
+            if table_plan.before_index is None:
+                before_header = "수정 전 없음"
+                after_header = "수정 후만 있음"
+            elif table_plan.after_index is None:
+                before_header = "수정 전만 있음"
+                after_header = "수정 후 없음"
+            else:
+                before_header = "수정 전"
+                after_header = "수정 후"
+
+            worksheet.write(0, 0, before_header, formats["header"])
+            worksheet.write(0, after_start_col, after_header, formats["header"])
+
+            if table_plan.before_index is None:
+                worksheet.write(1, after_start_col, "이 표는 수정 후 문서에만 있습니다.", formats["note"])
+            elif table_plan.after_index is None:
+                worksheet.write(1, 0, "이 표는 수정 전 문서에만 있습니다.", formats["note"])
 
             row_map_after_to_before, row_map_before_to_after = self._build_bidirectional_map(
                 table_plan.row_opcodes
@@ -100,7 +124,10 @@ class ExcelReportWriter:
                         try:
                             cell_after = table_plan.after_table[target_row][target_col]
                             value_after = self._cell_text(cell_after)
-                            if self._cell_signature(cell_before) == self._cell_signature(cell_after):
+                            if self._cell_signature(cell_before, report_input.compare_formatting) == self._cell_signature(
+                                cell_after,
+                                report_input.compare_formatting,
+                            ):
                                 is_changed = False
                             else:
                                 rich_before, _ = self._get_rich_diff(value_before, value_after, formats)
@@ -133,7 +160,10 @@ class ExcelReportWriter:
                         try:
                             cell_before = table_plan.before_table[original_row][original_col]
                             value_before = self._cell_text(cell_before)
-                            if self._cell_signature(cell_before) == self._cell_signature(cell_after):
+                            if self._cell_signature(cell_before, report_input.compare_formatting) == self._cell_signature(
+                                cell_after,
+                                report_input.compare_formatting,
+                            ):
                                 is_changed = False
                             else:
                                 _, rich_after = self._get_rich_diff(value_before, value_after, formats)
@@ -170,6 +200,7 @@ class ExcelReportWriter:
             "default": workbook.add_format({"valign": "vcenter", "text_wrap": True}),
             "loc": workbook.add_format({"align": "center", "valign": "vcenter", "text_wrap": True}),
             "marker": workbook.add_format({"align": "center", "valign": "vcenter"}),
+            "note": workbook.add_format({"italic": True, "font_color": "#666666"}),
             "table_cell": workbook.add_format({"valign": "vcenter", "border": 1, "text_wrap": True}),
             "table_ins": workbook.add_format(
                 {"font_color": "red", "bold": True, "valign": "vcenter", "border": 1, "text_wrap": True}
@@ -301,7 +332,20 @@ class ExcelReportWriter:
         return str(value)
 
     @staticmethod
-    def _cell_signature(value) -> tuple[str, int, str, int, int, int, str, str, str, str, int]:
+    def _cell_signature(value, compare_formatting: bool = True):
         if isinstance(value, TableCellData):
+            if not compare_formatting:
+                return (value.text,)
             return value.signature
+        if not compare_formatting:
+            return (str(value),)
         return (str(value), 1, "", 0, 0, 0, "", "", "", "", 0)
+
+    @staticmethod
+    def _table_sheet_name(table_plan) -> str:
+        suffix = ""
+        if table_plan.before_index is None:
+            suffix = " (수정 후만 있음)"
+        elif table_plan.after_index is None:
+            suffix = " (수정 전만 있음)"
+        return f"표 {table_plan.index + 1}{suffix}"

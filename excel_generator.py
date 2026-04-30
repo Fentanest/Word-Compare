@@ -7,6 +7,7 @@ def create_excel_report(before_file_path, after_file_path, excel_save_path, log_
     service.generate_from_extracted_data(
         excel_save_path=excel_save_path,
         log_callback=log_callback,
+        compare_formatting=False,
         paras_before=paras_before,
         paras_after=paras_after,
         flags_b=flags_b,

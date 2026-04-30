@@ -1,7 +1,7 @@
 import os
 
 from PySide6.QtCore import QEvent, Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QStandardItemModel
 from PySide6.QtWidgets import QApplication, QAbstractItemView, QFileDialog, QMainWindow
 
 from app.models import AppSettings, CompareOptions
@@ -42,6 +42,12 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.actionBlog.triggered.connect(self.open_blog_link)
         self.actionSorting.triggered.connect(self.sort_list_views)
 
+        self.actionFormatCompare = QAction("서식 비교", self)
+        self.actionFormatCompare.setCheckable(True)
+        self.actionFormatCompare.setShortcut(QKeySequence("F3"))
+        self.actionFormatCompare.toggled.connect(lambda _: self.save_settings())
+        self.menuOption.insertAction(self.actionGithub, self.actionFormatCompare)
+
         version_action = QAction(f"Version: {__version__}", self)
         version_action.setEnabled(False)
         self.menuMade_by_Fentanest.addAction(version_action)
@@ -58,6 +64,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.lineEditSavePath.setText(settings.save_path)
         self.textEditauthor.setPlainText(settings.author)
         self.checkBoxExcel.setChecked(settings.excel_checked)
+        self.actionFormatCompare.setChecked(settings.format_compare_enabled)
 
     def save_settings(self) -> None:
         self.settings_service.save(
@@ -65,6 +72,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 save_path=self.lineEditSavePath.text(),
                 author=self.textEditauthor.toPlainText(),
                 excel_checked=self.checkBoxExcel.isChecked(),
+                format_compare_enabled=self.actionFormatCompare.isChecked(),
             )
         )
 
@@ -173,5 +181,6 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
             save_dir=save_dir,
             author_name=self.textEditauthor.toPlainText(),
             generate_excel=self.checkBoxExcel.isChecked(),
+            compare_formatting=self.actionFormatCompare.isChecked(),
         )
         self.word_compare_service.compare_pairs(file_pairs, options, self.log)

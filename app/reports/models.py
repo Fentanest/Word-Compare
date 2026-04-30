@@ -13,6 +13,7 @@ type TableCellValue = str | TableCellData
 class ExcelReportInput:
     excel_save_path: str
     log_callback: Callable[[str], None] | None = None
+    compare_formatting: bool = False
     paras_before: list[ParagraphValue] | None = None
     paras_after: list[ParagraphValue] | None = None
     get_loc_cb: Callable[[int, bool], str] | None = None
@@ -25,6 +26,8 @@ class ExcelReportInput:
 @dataclass(frozen=True)
 class TableDiffPlan:
     index: int
+    before_index: int | None
+    after_index: int | None
     before_table: list[list[TableCellValue]]
     after_table: list[list[TableCellValue]]
     row_opcodes: list[Opcode]

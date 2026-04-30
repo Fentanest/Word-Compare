@@ -13,6 +13,7 @@ def _run_comparison_task(args):
 
 class ExcelDiffEngine:
     def build_diff_plan(self, report_input: ExcelReportInput) -> ExcelDiffPlan:
+        compare_formatting = report_input.compare_formatting
         filtered_paras_before, original_indices_before = self._filter_paragraphs(
             report_input.paras_before,
             report_input.flags_b,
@@ -24,43 +25,41 @@ class ExcelDiffEngine:
 
         tables_before = report_input.tables_before or []
         tables_after = report_input.tables_after or []
-        max_tables = max(len(tables_before), len(tables_after))
+        aligned_tables = self._align_tables(tables_before, tables_after, compare_formatting)
 
         tasks = [
             (
-                self._build_paragraph_signatures(filtered_paras_before),
-                self._build_paragraph_signatures(filtered_paras_after),
+                self._build_paragraph_signatures(filtered_paras_before, compare_formatting),
+                self._build_paragraph_signatures(filtered_paras_after, compare_formatting),
             )
         ]
-        for table_index in range(max_tables):
-            before_table = tables_before[table_index] if table_index < len(tables_before) else []
-            after_table = tables_after[table_index] if table_index < len(tables_after) else []
+        for _, _, _, before_table, after_table in aligned_tables:
             tasks.append(
                 (
-                    self._build_row_signatures(before_table),
-                    self._build_row_signatures(after_table),
+                    self._build_row_signatures(before_table, compare_formatting),
+                    self._build_row_signatures(after_table, compare_formatting),
                 )
             )
             tasks.append(
                 (
-                    self._build_column_signatures(before_table),
-                    self._build_column_signatures(after_table),
+                    self._build_column_signatures(before_table, compare_formatting),
+                    self._build_column_signatures(after_table, compare_formatting),
                 )
             )
 
         all_results = self._run_tasks(tasks)
         table_plans: list[TableDiffPlan] = []
 
-        for table_index in range(max_tables):
-            before_table = tables_before[table_index] if table_index < len(tables_before) else []
-            after_table = tables_after[table_index] if table_index < len(tables_after) else []
+        for plan_index, (display_index, before_index, after_index, before_table, after_table) in enumerate(aligned_tables):
             table_plans.append(
                 TableDiffPlan(
-                    index=table_index,
+                    index=display_index,
+                    before_index=before_index,
+                    after_index=after_index,
                     before_table=before_table,
                     after_table=after_table,
-                    row_opcodes=all_results[1 + table_index * 2],
-                    col_opcodes=all_results[2 + table_index * 2],
+                    row_opcodes=all_results[1 + plan_index * 2],
+                    col_opcodes=all_results[2 + plan_index * 2],
                 )
             )
 
@@ -97,29 +96,28 @@ class ExcelDiffEngine:
         return filtered, indices
 
     @staticmethod
-    def _build_row_signatures(table):
+    def _build_row_signatures(table, compare_formatting: bool):
         signatures = []
         for row in table:
-            signatures.append(tuple(ExcelDiffEngine._cell_alignment_signature(cell) for cell in row))
+            signatures.append(tuple(ExcelDiffEngine._cell_alignment_signature(cell, compare_formatting) for cell in row))
         return signatures
 
     @staticmethod
-    def _build_paragraph_signatures(paragraphs):
-        return [ExcelDiffEngine._paragraph_signature(paragraph) for paragraph in paragraphs]
+    def _build_paragraph_signatures(paragraphs, compare_formatting: bool):
+        return [ExcelDiffEngine._paragraph_signature(paragraph, compare_formatting) for paragraph in paragraphs]
 
     @staticmethod
-    def _build_column_signatures(table):
+    def _build_column_signatures(table, compare_formatting: bool):
         max_cols = max((len(row) for row in table), default=0)
         signatures = []
+        missing_signature = ExcelDiffEngine._missing_cell_alignment_signature(compare_formatting)
         for col_index in range(max_cols):
             column_signature = []
             for row in table:
                 if col_index < len(row):
-                    column_signature.append(ExcelDiffEngine._cell_alignment_signature(row[col_index]))
+                    column_signature.append(ExcelDiffEngine._cell_alignment_signature(row[col_index], compare_formatting))
                 else:
-                    column_signature.append(
-                        ("__RHWP_MISSING_CELL__", 0, "__RHWP_MISSING_CELL__", 0, 0, 0, "", "", "", "", 0)
-                    )
+                    column_signature.append(missing_signature)
             signatures.append(tuple(column_signature))
         return signatures
 
@@ -131,9 +129,66 @@ class ExcelDiffEngine:
     def _normalize_alignment_text(value):
         return normalize_alignment_text(str(value))
 
+    def _align_tables(self, tables_before, tables_after, compare_formatting: bool):
+        before_signatures = [self._table_signature(table, compare_formatting) for table in tables_before]
+        after_signatures = [self._table_signature(table, compare_formatting) for table in tables_after]
+        table_opcodes = _run_comparison_task((before_signatures, after_signatures))
+
+        aligned_tables = []
+        display_index = 0
+        for tag, i1, i2, j1, j2 in table_opcodes:
+            if tag in ("equal", "replace"):
+                pair_count = min(i2 - i1, j2 - j1)
+                for offset in range(pair_count):
+                    before_index = i1 + offset
+                    after_index = j1 + offset
+                    aligned_tables.append(
+                        (
+                            display_index,
+                            before_index,
+                            after_index,
+                            tables_before[before_index],
+                            tables_after[after_index],
+                        )
+                    )
+                    display_index += 1
+
+                for before_index in range(i1 + pair_count, i2):
+                    aligned_tables.append((display_index, before_index, None, tables_before[before_index], []))
+                    display_index += 1
+
+                for after_index in range(j1 + pair_count, j2):
+                    aligned_tables.append((display_index, None, after_index, [], tables_after[after_index]))
+                    display_index += 1
+            elif tag == "delete":
+                for before_index in range(i1, i2):
+                    aligned_tables.append((display_index, before_index, None, tables_before[before_index], []))
+                    display_index += 1
+            elif tag == "insert":
+                for after_index in range(j1, j2):
+                    aligned_tables.append((display_index, None, after_index, [], tables_after[after_index]))
+                    display_index += 1
+
+        return aligned_tables
+
     @staticmethod
-    def _paragraph_signature(value):
+    def _table_signature(table, compare_formatting: bool):
+        max_cols = max((len(row) for row in table), default=0)
+        first_row_signature = ()
+        if table:
+            first_row_signature = tuple(
+                ExcelDiffEngine._table_identity_cell(cell, compare_formatting) for cell in table[0][: min(len(table[0]), 6)]
+            )
+        return (
+            max_cols,
+            first_row_signature,
+        )
+
+    @staticmethod
+    def _paragraph_signature(value, compare_formatting: bool):
         if isinstance(value, ParagraphData):
+            if not compare_formatting and value.source_kind == "body":
+                return (ExcelDiffEngine._normalize_text(value.text),)
             return value.signature
         return (ExcelDiffEngine._normalize_text(value),)
 
@@ -156,7 +211,31 @@ class ExcelDiffEngine:
         return (ExcelDiffEngine._normalize_text(value), 1, "", 0, 0, 0, "", "", "", "", 0)
 
     @staticmethod
-    def _cell_alignment_signature(value):
+    def _cell_alignment_signature(value, compare_formatting: bool):
         if isinstance(value, TableCellData):
+            if not compare_formatting:
+                return (ExcelDiffEngine._normalize_alignment_text(value.text),)
             return value.alignment_signature
-        return (ExcelDiffEngine._normalize_alignment_text(value), 1, "", 0, 0, 0, "", "", "", "", 0)
+        return (ExcelDiffEngine._normalize_alignment_text(value),) if not compare_formatting else (
+            ExcelDiffEngine._normalize_alignment_text(value), 1, "", 0, 0, 0, "", "", "", "", 0
+        )
+
+    @staticmethod
+    def _table_identity_cell(value, compare_formatting: bool):
+        if isinstance(value, TableCellData):
+            if not compare_formatting:
+                return ExcelDiffEngine._normalize_alignment_text(value.text)
+            return (
+                ExcelDiffEngine._normalize_alignment_text(value.text),
+                value.grid_span,
+                value.v_merge,
+            )
+        if not compare_formatting:
+            return ExcelDiffEngine._normalize_alignment_text(value)
+        return (ExcelDiffEngine._normalize_alignment_text(value), 1, "")
+
+    @staticmethod
+    def _missing_cell_alignment_signature(compare_formatting: bool):
+        if not compare_formatting:
+            return ("__RHWP_MISSING_CELL__",)
+        return ("__RHWP_MISSING_CELL__", 0, "__RHWP_MISSING_CELL__", 0, 0, 0, "", "", "", "", 0)

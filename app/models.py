@@ -27,6 +27,7 @@ class AppSettings:
     save_path: str
     author: str
     excel_checked: bool
+    format_compare_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class CompareOptions:
     save_dir: str
     author_name: str
     generate_excel: bool
+    compare_formatting: bool = False
 
     @property
     def effective_author_name(self) -> str:

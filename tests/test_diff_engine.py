@@ -116,10 +116,33 @@ class ExcelDiffEngineTests(unittest.TestCase):
         self.assertIn(("insert", 1, 1, 1, 2), col_opcodes)
         self.assertIn(("equal", 1, 3, 2, 4), col_opcodes)
 
+    def test_table_alignment_distinguishes_after_only_table(self):
+        engine = ExcelDiffEngine()
+        report_input = ExcelReportInput(
+            excel_save_path="unused.xlsx",
+            tables_before=[
+                [["A 표 제목"], ["A 내용"]],
+                [["B 표 제목"], ["B 내용"]],
+            ],
+            tables_after=[
+                [["A 표 제목"], ["A 내용 변경"]],
+                [["삽입된 표 제목"], ["삽입된 표 내용"]],
+                [["B 표 제목"], ["B 내용 변경"]],
+            ],
+        )
+
+        diff_plan = engine.build_diff_plan(report_input)
+
+        self.assertEqual(len(diff_plan.tables), 3)
+        self.assertEqual((diff_plan.tables[0].before_index, diff_plan.tables[0].after_index), (0, 0))
+        self.assertEqual((diff_plan.tables[1].before_index, diff_plan.tables[1].after_index), (None, 1))
+        self.assertEqual((diff_plan.tables[2].before_index, diff_plan.tables[2].after_index), (1, 2))
+
     def test_merge_metadata_changes_affect_table_alignment_signatures(self):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
             excel_save_path="unused.xlsx",
+            compare_formatting=True,
             tables_before=[
                 [
                     [TableCellData(text="HEADER", grid_span=2), TableCellData(text="HEADER", grid_span=2)],
@@ -143,6 +166,7 @@ class ExcelDiffEngineTests(unittest.TestCase):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
             excel_save_path="unused.xlsx",
+            compare_formatting=True,
             paras_before=[
                 ParagraphData(
                     text="같은 본문",
@@ -167,6 +191,7 @@ class ExcelDiffEngineTests(unittest.TestCase):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
             excel_save_path="unused.xlsx",
+            compare_formatting=True,
             paras_before=[ParagraphData(text="제목", style_name="Normal")],
             paras_after=[ParagraphData(text="제목", style_name="Heading 1")],
             flags_b=[False],
@@ -209,6 +234,7 @@ class ExcelDiffEngineTests(unittest.TestCase):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
             excel_save_path="unused.xlsx",
+            compare_formatting=True,
             tables_before=[
                 [
                     [TableCellData(text="HEADER", cell_width=2400), TableCellData(text="VALUE", cell_width=1800)],
@@ -232,6 +258,7 @@ class ExcelDiffEngineTests(unittest.TestCase):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
             excel_save_path="unused.xlsx",
+            compare_formatting=True,
             tables_before=[
                 [
                     [TableCellData(text="HEADER", row_height=320)],
@@ -255,6 +282,7 @@ class ExcelDiffEngineTests(unittest.TestCase):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
             excel_save_path="unused.xlsx",
+            compare_formatting=True,
             tables_before=[
                 [
                     [
@@ -290,6 +318,7 @@ class ExcelDiffEngineTests(unittest.TestCase):
         engine = ExcelDiffEngine()
         report_input = ExcelReportInput(
             excel_save_path="unused.xlsx",
+            compare_formatting=True,
             tables_before=[
                 [
                     [

@@ -131,7 +131,7 @@ class ExcelReportPipelineTests(unittest.TestCase):
             self.assertIn("위치", strings)
             self.assertIn("수정 전", strings)
             self.assertIn("수정 후", strings)
-            self.assertIn("서식 변경", strings)
+            self.assertNotIn("서식 변경", strings)
             self.assertIn("2행", strings)
             self.assertIn("before text", strings)
             self.assertIn("after text", strings)
@@ -162,6 +162,33 @@ class ExcelReportPipelineTests(unittest.TestCase):
             self.assertIn("B", strings)
             self.assertIn("B2", strings)
 
+    def test_after_only_table_gets_its_own_sheet_label(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "table-align-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                paras_before=[],
+                paras_after=[],
+                flags_b=[],
+                flags_a=[],
+                tables_before=[
+                    [["A 표 제목"], ["A 내용"]],
+                    [["B 표 제목"], ["B 내용"]],
+                ],
+                tables_after=[
+                    [["A 표 제목"], ["A 내용 변경"]],
+                    [["삽입된 표 제목"], ["삽입된 표 내용"]],
+                    [["B 표 제목"], ["B 내용 변경"]],
+                ],
+            )
+
+            sheet_names = extract_sheet_names(xlsx_path)
+            self.assertIn("표 2 (수정 후만 있음)", sheet_names)
+            self.assertIn("표 3", sheet_names)
+
     def test_format_only_paragraph_changes_are_marked_in_main_sheet(self):
         service = ExcelReportService(extractor=None)
 
@@ -170,6 +197,7 @@ class ExcelReportPipelineTests(unittest.TestCase):
             service.generate_from_extracted_data(
                 excel_save_path=str(xlsx_path),
                 log_callback=None,
+                compare_formatting=True,
                 paras_before=[
                     ParagraphData(
                         text="같은 문장",
@@ -199,6 +227,38 @@ class ExcelReportPipelineTests(unittest.TestCase):
 
             cells = extract_sheet_cells(xlsx_path, "변경 내용(일반)")
             self.assertEqual(cells["B2"].get("s"), cells["C2"].get("s"))
+
+    def test_format_only_paragraph_changes_are_ignored_when_format_compare_disabled(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "format-off-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                compare_formatting=False,
+                paras_before=[
+                    ParagraphData(
+                        text="같은 문장",
+                        runs=(RunData(text="같은 문장", bold=False),),
+                    )
+                ],
+                paras_after=[
+                    ParagraphData(
+                        text="같은 문장",
+                        runs=(RunData(text="같은 문장", bold=True),),
+                    )
+                ],
+                flags_b=[False],
+                flags_a=[False],
+                tables_before=[],
+                tables_after=[],
+                get_loc_cb=lambda idx, is_before: f"{idx + 1}행",
+            )
+
+            strings = extract_shared_strings(xlsx_path)
+            self.assertNotIn("서식 변경", strings)
+            self.assertNotIn("같은 문장", strings)
 
     def test_metadata_only_changes_are_marked_in_main_sheet(self):
         service = ExcelReportService(extractor=None)

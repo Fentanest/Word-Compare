@@ -112,6 +112,7 @@ class WordCompareService:
                         report_doc_after,
                         result_excel_path,
                         log_callback,
+                        compare_formatting=options.compare_formatting,
                     )
                     self._log_perf(log_callback, f"{original_filename} Excel 보고서 생성", excel_started_at)
                 except Exception as error:

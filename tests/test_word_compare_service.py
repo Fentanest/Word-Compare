@@ -57,8 +57,8 @@ class _FakeExcelReportService:
     def __init__(self):
         self.calls = []
 
-    def generate(self, before_doc, after_doc, excel_save_path, log_callback):
-        self.calls.append((before_doc, after_doc, excel_save_path))
+    def generate(self, before_doc, after_doc, excel_save_path, log_callback, compare_formatting=False):
+        self.calls.append((before_doc, after_doc, excel_save_path, compare_formatting))
 
 
 class WordCompareServiceTests(unittest.TestCase):
@@ -80,6 +80,7 @@ class WordCompareServiceTests(unittest.TestCase):
                     save_dir=temp_dir,
                     author_name="Tester",
                     generate_excel=True,
+                    compare_formatting=True,
                 ),
                 log_callback=None,
             )
@@ -95,6 +96,7 @@ class WordCompareServiceTests(unittest.TestCase):
         self.assertEqual(len(excel_service.calls), 1)
         self.assertIs(excel_service.calls[0][0], report_before)
         self.assertIs(excel_service.calls[0][1], report_after)
+        self.assertTrue(excel_service.calls[0][3])
         self.assertTrue(compare_before.closed)
         self.assertTrue(compare_after.closed)
         self.assertTrue(report_before.closed)
@@ -118,6 +120,7 @@ class WordCompareServiceTests(unittest.TestCase):
                     save_dir=temp_dir,
                     author_name="Tester",
                     generate_excel=True,
+                    compare_formatting=False,
                 ),
                 log_callback=None,
             )

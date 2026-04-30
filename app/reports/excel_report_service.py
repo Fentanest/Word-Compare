@@ -23,7 +23,7 @@ class ExcelReportService:
         self.diff_engine = diff_engine or ExcelDiffEngine()
         self.writer = writer or ExcelReportWriter()
 
-    def generate(self, before_doc, after_doc, excel_save_path: str, log_callback) -> None:
+    def generate(self, before_doc, after_doc, excel_save_path: str, log_callback, compare_formatting: bool = False) -> None:
         if self.extractor is None:
             raise RuntimeError("문서 추출기가 없어 generate()를 사용할 수 없습니다.")
 
@@ -51,6 +51,7 @@ class ExcelReportService:
         self.generate_from_extracted_data(
             excel_save_path=excel_save_path,
             log_callback=log_callback,
+            compare_formatting=compare_formatting,
             paras_before=before_data.paragraphs,
             paras_after=after_data.paragraphs,
             flags_b=before_data.table_flags,
@@ -72,10 +73,12 @@ class ExcelReportService:
         tables_before,
         tables_after,
         get_loc_cb=None,
+        compare_formatting: bool = False,
     ) -> None:
         report_input = ExcelReportInput(
             excel_save_path=excel_save_path,
             log_callback=log_callback,
+            compare_formatting=compare_formatting,
             paras_before=paras_before,
             paras_after=paras_after,
             get_loc_cb=get_loc_cb,
