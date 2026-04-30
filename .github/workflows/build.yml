@@ -39,6 +39,7 @@ jobs:
       shell: cmd
       run: |
         git fetch --tags --force
+        if errorlevel 1 exit /b %errorlevel%
         git show-ref --tags --verify --quiet "refs/tags/${{ steps.version.outputs.tag }}"
         if not errorlevel 1 (
           echo tag_exists=true>> %GITHUB_OUTPUT%
@@ -47,6 +48,7 @@ jobs:
           echo tag_exists=false>> %GITHUB_OUTPUT%
           echo Tag ${{ steps.version.outputs.tag }} does not exist. Proceeding with package build.
         )
+        exit /b 0
 
   build-windows:
     name: Build Windows Package
