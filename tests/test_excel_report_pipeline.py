@@ -136,6 +136,28 @@ class ExcelReportPipelineTests(unittest.TestCase):
             self.assertIn("before text", strings)
             self.assertIn("after text", strings)
 
+    def test_generate_from_extracted_data_uses_paragraph_locations_when_callback_missing(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "location-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                paras_before=["before text"],
+                paras_after=["after text"],
+                flags_b=[False],
+                flags_a=[False],
+                tables_before=[],
+                tables_after=[],
+                paragraph_locations_before=["14행"],
+                paragraph_locations_after=["15행"],
+            )
+
+            strings = extract_shared_strings(xlsx_path)
+            self.assertIn("14행", strings)
+            self.assertNotIn("문단", strings)
+
     def test_legacy_excel_generator_wrapper_keeps_table_sheet_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             xlsx_path = Path(temp_dir) / "table-report.xlsx"

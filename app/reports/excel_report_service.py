@@ -73,8 +73,17 @@ class ExcelReportService:
         tables_before,
         tables_after,
         get_loc_cb=None,
+        paragraph_locations_before=None,
+        paragraph_locations_after=None,
         compare_formatting: bool = False,
     ) -> None:
+        if get_loc_cb is None and (paragraph_locations_before or paragraph_locations_after):
+            def get_loc_cb(idx, is_before):
+                locations = paragraph_locations_before if is_before else paragraph_locations_after
+                if locations and 0 <= idx < len(locations):
+                    return locations[idx]
+                return f"{idx + 1}행"
+
         report_input = ExcelReportInput(
             excel_save_path=excel_save_path,
             log_callback=log_callback,
