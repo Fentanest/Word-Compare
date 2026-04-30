@@ -77,6 +77,35 @@ def extract_sheet_values(xlsx_path: Path, sheet_name: str) -> list[str]:
     return values
 
 
+def extract_sheet_cells(xlsx_path: Path, sheet_name: str) -> dict[str, dict[str, str]]:
+    with zipfile.ZipFile(xlsx_path) as archive:
+        workbook_xml = archive.read("xl/workbook.xml")
+        workbook_root = ET.fromstring(workbook_xml)
+        sheets = workbook_root.findall(".//main:sheets/main:sheet", NS)
+        target_sheet_id = None
+        for sheet in sheets:
+            if sheet.attrib["name"] == sheet_name:
+                target_sheet_id = sheet.attrib["{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"]
+                break
+
+        if not target_sheet_id:
+            return {}
+
+        rels_root = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        target_path = None
+        for rel in rels_root:
+            if rel.attrib.get("Id") == target_sheet_id:
+                target_path = f"xl/{rel.attrib['Target']}"
+                break
+
+        if not target_path:
+            return {}
+
+        sheet_root = ET.fromstring(archive.read(target_path))
+
+    return {cell.attrib["r"]: dict(cell.attrib) for cell in sheet_root.findall(".//main:c", NS)}
+
+
 class ExcelReportPipelineTests(unittest.TestCase):
     def test_excel_report_service_writes_main_sheet_and_changed_text(self):
         service = ExcelReportService(extractor=None)
@@ -167,6 +196,9 @@ class ExcelReportPipelineTests(unittest.TestCase):
             main_values = extract_sheet_values(xlsx_path, "변경 내용(일반)")
             self.assertIn("서식 변경", main_values)
             self.assertIn("O", main_values)
+
+            cells = extract_sheet_cells(xlsx_path, "변경 내용(일반)")
+            self.assertEqual(cells["B2"].get("s"), cells["C2"].get("s"))
 
     def test_metadata_only_changes_are_marked_in_main_sheet(self):
         service = ExcelReportService(extractor=None)

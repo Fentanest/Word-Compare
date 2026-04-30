@@ -211,21 +211,31 @@ class ExcelReportWriter:
 
     @staticmethod
     def _write_rich_or_plain(worksheet, row, col, rich_data, plain_text, formats) -> None:
-        if len(rich_data) >= 3 and len(rich_data) <= 500:
+        has_text_change = ExcelReportWriter._has_text_change_markup(rich_data, formats)
+
+        if has_text_change and len(rich_data) >= 3 and len(rich_data) <= 500:
             try:
                 worksheet.write_rich_string(row, col, *rich_data, formats["default"])
                 return
             except Exception:
                 pass
 
-        if col == 2 and rich_data:
+        if col == 2 and has_text_change:
             fallback_format = formats["ins"]
-        elif col == 1 and rich_data:
+        elif col == 1 and has_text_change:
             fallback_format = formats["del"]
         else:
             fallback_format = formats["default"]
 
         worksheet.write(row, col, plain_text, fallback_format)
+
+    @staticmethod
+    def _has_text_change_markup(rich_data, formats) -> bool:
+        return any(
+            item is formats["del"] or item is formats["ins"]
+            for item in rich_data
+            if not isinstance(item, str)
+        )
 
     @staticmethod
     def _build_bidirectional_map(opcodes):
