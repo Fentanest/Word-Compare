@@ -22,9 +22,10 @@ class ExcelReportWriter:
 
     def _write_main_sheet(self, workbook, formats, report_input: ExcelReportInput, diff_plan: ExcelDiffPlan) -> None:
         worksheet = workbook.add_worksheet("변경 내용(일반)")
-        worksheet.write_row("A1", ["위치", "수정 전", "수정 후"], formats["header"])
+        worksheet.write_row("A1", ["위치", "수정 전", "수정 후", "서식 변경"], formats["header"])
         worksheet.set_column("A:A", 25, formats["loc"])
         worksheet.set_column("B:C", 60, formats["default"])
+        worksheet.set_column("D:D", 12, formats["marker"])
         worksheet.freeze_panes(1, 0)
 
         excel_row = 1
@@ -36,13 +37,17 @@ class ExcelReportWriter:
             if not content_before and not content_after:
                 continue
 
+            style_changed = False
             if content_before == content_after:
                 marker = self._change_marker(
                     diff_plan.filtered_paras_before[i1:i2],
                     diff_plan.filtered_paras_after[j1:j2],
                 )
-                content_before = self._mark_change(content_before, marker)
-                content_after = self._mark_change(content_after, marker)
+                if marker == "서식 변경":
+                    style_changed = True
+                else:
+                    content_before = self._mark_change(content_before, marker)
+                    content_after = self._mark_change(content_after, marker)
 
             rich_before, rich_after = self._get_rich_diff(content_before, content_after, formats)
             worksheet.write(
@@ -64,6 +69,7 @@ class ExcelReportWriter:
                     plain_text,
                     formats,
                 )
+            worksheet.write(excel_row, 3, "O" if style_changed else "", formats["marker"])
             excel_row += 1
 
     def _write_table_sheets(self, workbook, formats, diff_plan: ExcelDiffPlan) -> None:
@@ -163,6 +169,7 @@ class ExcelReportWriter:
             ),
             "default": workbook.add_format({"valign": "vcenter", "text_wrap": True}),
             "loc": workbook.add_format({"align": "center", "valign": "vcenter", "text_wrap": True}),
+            "marker": workbook.add_format({"align": "center", "valign": "vcenter"}),
             "table_cell": workbook.add_format({"valign": "vcenter", "border": 1, "text_wrap": True}),
             "table_ins": workbook.add_format(
                 {"font_color": "red", "bold": True, "valign": "vcenter", "border": 1, "text_wrap": True}

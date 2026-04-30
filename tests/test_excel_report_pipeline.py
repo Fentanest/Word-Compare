@@ -34,6 +34,49 @@ def extract_shared_strings(xlsx_path: Path) -> list[str]:
     return values
 
 
+def extract_sheet_values(xlsx_path: Path, sheet_name: str) -> list[str]:
+    with zipfile.ZipFile(xlsx_path) as archive:
+        workbook_xml = archive.read("xl/workbook.xml")
+        workbook_root = ET.fromstring(workbook_xml)
+        sheets = workbook_root.findall(".//main:sheets/main:sheet", NS)
+        target_sheet_id = None
+        for sheet in sheets:
+            if sheet.attrib["name"] == sheet_name:
+                target_sheet_id = sheet.attrib["{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"]
+                break
+
+        if not target_sheet_id:
+            return []
+
+        rels_root = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        target_path = None
+        for rel in rels_root:
+            if rel.attrib.get("Id") == target_sheet_id:
+                target_path = f"xl/{rel.attrib['Target']}"
+                break
+
+        if not target_path:
+            return []
+
+        shared_strings = extract_shared_strings(xlsx_path)
+        sheet_root = ET.fromstring(archive.read(target_path))
+
+    values = []
+    for cell in sheet_root.findall(".//main:c", NS):
+        cell_type = cell.attrib.get("t")
+        if cell_type == "s":
+            value_index = cell.find("main:v", NS)
+            if value_index is not None:
+                values.append(shared_strings[int(value_index.text)])
+        elif cell_type == "inlineStr":
+            values.append("".join(node.text or "" for node in cell.findall(".//main:t", NS)))
+        else:
+            value = cell.find("main:v", NS)
+            if value is not None:
+                values.append(value.text or "")
+    return values
+
+
 class ExcelReportPipelineTests(unittest.TestCase):
     def test_excel_report_service_writes_main_sheet_and_changed_text(self):
         service = ExcelReportService(extractor=None)
@@ -59,6 +102,7 @@ class ExcelReportPipelineTests(unittest.TestCase):
             self.assertIn("위치", strings)
             self.assertIn("수정 전", strings)
             self.assertIn("수정 후", strings)
+            self.assertIn("서식 변경", strings)
             self.assertIn("2행", strings)
             self.assertIn("before text", strings)
             self.assertIn("after text", strings)
@@ -117,7 +161,12 @@ class ExcelReportPipelineTests(unittest.TestCase):
             )
 
             strings = extract_shared_strings(xlsx_path)
-            self.assertIn("같은 문장 [서식 변경]", strings)
+            self.assertIn("같은 문장", strings)
+            self.assertNotIn("같은 문장 [서식 변경]", strings)
+
+            main_values = extract_sheet_values(xlsx_path, "변경 내용(일반)")
+            self.assertIn("서식 변경", main_values)
+            self.assertIn("O", main_values)
 
     def test_metadata_only_changes_are_marked_in_main_sheet(self):
         service = ExcelReportService(extractor=None)
