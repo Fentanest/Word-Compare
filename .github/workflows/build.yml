@@ -9,7 +9,7 @@ on:
 jobs:
   metadata:
     name: Resolve Version And Tag
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64, 233]
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -27,31 +27,32 @@ jobs:
 
     - name: Resolve version
       id: version
-      shell: bash
+      shell: pwsh
       run: |
-        VERSION="$(python -c "from version import __version__; print(__version__)")"
-        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "Resolved version ${VERSION}"
+        $version = python -c "from version import __version__; print(__version__)"
+        "version=$version" >> $env:GITHUB_OUTPUT
+        "tag=v$version" >> $env:GITHUB_OUTPUT
+        Write-Host "Resolved version $version"
 
     - name: Check if tag already exists
       id: tag_check
-      shell: bash
+      shell: pwsh
       run: |
         git fetch --tags --force
-        if git show-ref --tags --verify --quiet "refs/tags/${{ steps.version.outputs.tag }}"; then
-          echo "tag_exists=true" >> "$GITHUB_OUTPUT"
-          echo "Tag ${{ steps.version.outputs.tag }} already exists. Skipping package build."
-        else
-          echo "tag_exists=false" >> "$GITHUB_OUTPUT"
-          echo "Tag ${{ steps.version.outputs.tag }} does not exist. Proceeding with package build."
-        fi
+        git show-ref --tags --verify --quiet "refs/tags/${{ steps.version.outputs.tag }}"
+        if ($LASTEXITCODE -eq 0) {
+          "tag_exists=true" >> $env:GITHUB_OUTPUT
+          Write-Host "Tag ${{ steps.version.outputs.tag }} already exists. Skipping package build."
+        } else {
+          "tag_exists=false" >> $env:GITHUB_OUTPUT
+          Write-Host "Tag ${{ steps.version.outputs.tag }} does not exist. Proceeding with package build."
+        }
 
   build-windows:
     name: Build Windows Package
     needs: metadata
     if: needs.metadata.outputs.tag_exists != 'true'
-    runs-on: [self-hosted, Windows, X64, 230]
+    runs-on: [self-hosted, Windows, X64, 233]
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -78,46 +79,11 @@ jobs:
         name: WordCompare-Windows-${{ needs.metadata.outputs.version }}
         path: build/package/WordCompare-Windows-${{ needs.metadata.outputs.version }}.zip
 
-  build-linux:
-    name: Build Linux Package
-    needs: metadata
-    if: needs.metadata.outputs.tag_exists != 'true'
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
-
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.14'
-
-    - name: Set up Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Install Linux packaging dependencies
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libxcb-cursor0
-
-    - name: Build packaged application
-      shell: bash
-      run: bash scripts/build_app.sh
-
-    - name: Upload packaged Linux artifact
-      uses: actions/upload-artifact@v7
-      with:
-        name: WordCompare-Linux-${{ needs.metadata.outputs.version }}
-        path: build/package/WordCompare-Linux-${{ needs.metadata.outputs.version }}.tar.gz
-
   release:
     name: Create Release
-    needs: [metadata, build-windows, build-linux]
+    needs: [metadata, build-windows]
     if: needs.metadata.outputs.tag_exists != 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64, 233]
     permissions:
       contents: write
     steps:
@@ -125,12 +91,6 @@ jobs:
       uses: actions/download-artifact@v5
       with:
         name: WordCompare-Windows-${{ needs.metadata.outputs.version }}
-        path: release-assets
-
-    - name: Download Linux artifact
-      uses: actions/download-artifact@v5
-      with:
-        name: WordCompare-Linux-${{ needs.metadata.outputs.version }}
         path: release-assets
 
     - name: Create GitHub Release
