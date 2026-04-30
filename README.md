@@ -2,9 +2,13 @@
 
 ## 사용 이미지 예시
 
-![사용 예시 1](example.png)
+<p align="center">
+  <img src="example.png" alt="사용 예시 1" />
+</p>
 
-![사용 예시 2](example2.png)
+<p align="center">
+  <img src="example2.png" alt="사용 예시 2" />
+</p>
 
 ## 소개
 

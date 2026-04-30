@@ -27,26 +27,26 @@ jobs:
 
     - name: Resolve version
       id: version
-      shell: pwsh
+      shell: cmd
       run: |
-        $version = python -c "from version import __version__; print(__version__)"
-        "version=$version" >> $env:GITHUB_OUTPUT
-        "tag=v$version" >> $env:GITHUB_OUTPUT
-        Write-Host "Resolved version $version"
+        for /f "usebackq delims=" %%v in (`python -c "from version import __version__; print(__version__)"`) do set VERSION=%%v
+        echo version=%VERSION%>> %GITHUB_OUTPUT%
+        echo tag=v%VERSION%>> %GITHUB_OUTPUT%
+        echo Resolved version %VERSION%
 
     - name: Check if tag already exists
       id: tag_check
-      shell: pwsh
+      shell: cmd
       run: |
         git fetch --tags --force
         git show-ref --tags --verify --quiet "refs/tags/${{ steps.version.outputs.tag }}"
-        if ($LASTEXITCODE -eq 0) {
-          "tag_exists=true" >> $env:GITHUB_OUTPUT
-          Write-Host "Tag ${{ steps.version.outputs.tag }} already exists. Skipping package build."
-        } else {
-          "tag_exists=false" >> $env:GITHUB_OUTPUT
-          Write-Host "Tag ${{ steps.version.outputs.tag }} does not exist. Proceeding with package build."
-        }
+        if not errorlevel 1 (
+          echo tag_exists=true>> %GITHUB_OUTPUT%
+          echo Tag ${{ steps.version.outputs.tag }} already exists. Skipping package build.
+        ) else (
+          echo tag_exists=false>> %GITHUB_OUTPUT%
+          echo Tag ${{ steps.version.outputs.tag }} does not exist. Proceeding with package build.
+        )
 
   build-windows:
     name: Build Windows Package
