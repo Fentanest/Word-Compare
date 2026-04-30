@@ -68,8 +68,27 @@ jobs:
       with:
         python-version: '3.14'
 
-    - name: Set up Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
+    - name: Ensure Rust toolchain
+      shell: cmd
+      run: |
+        where cargo >nul 2>&1
+        if errorlevel 1 (
+          echo Rust toolchain not found. Installing rustup...
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile 'rustup-init.exe'"
+          if errorlevel 1 exit /b %errorlevel%
+          rustup-init.exe -y --default-toolchain stable
+          if errorlevel 1 exit /b %errorlevel%
+          del /f /q rustup-init.exe
+        )
+        set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+        echo %USERPROFILE%\.cargo\bin>> "%GITHUB_PATH%"
+        where rustup >nul 2>&1
+        if not errorlevel 1 (
+          rustup default stable
+          if errorlevel 1 exit /b %errorlevel%
+        )
+        cargo --version
+        if errorlevel 1 exit /b %errorlevel%
 
     - name: Build packaged application
       shell: cmd
