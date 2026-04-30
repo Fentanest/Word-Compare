@@ -232,6 +232,119 @@ class ExcelReportPipelineTests(unittest.TestCase):
             self.assertIn("표 2 (수정 후만 있음)", sheet_names)
             self.assertIn("표 3", sheet_names)
 
+    def test_table_metadata_moves_to_table_sheet_when_format_compare_enabled(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "table-meta-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                compare_formatting=True,
+                paras_before=[
+                    ParagraphData(text="[TABLE_MARKER]"),
+                    ParagraphData(
+                        text="표 1 서식",
+                        source_kind="table-meta",
+                        source_identifier="1",
+                        extra_meta=("tblW:w=1000",),
+                    ),
+                ],
+                paras_after=[
+                    ParagraphData(text="[TABLE_MARKER]"),
+                    ParagraphData(
+                        text="표 1 서식",
+                        source_kind="table-meta",
+                        source_identifier="1",
+                        extra_meta=("tblW:w=2000",),
+                    ),
+                ],
+                flags_b=[True, False],
+                flags_a=[True, False],
+                tables_before=[[["A"]]],
+                tables_after=[[["A"]]],
+            )
+
+            main_values = extract_sheet_values(xlsx_path, "변경 내용(일반)")
+            self.assertNotIn("표 1 서식", main_values)
+
+            table_values = extract_sheet_values(xlsx_path, "표 1")
+            self.assertIn("표 서식 변경", table_values)
+            self.assertIn("tblW:w=1000", table_values)
+            self.assertIn("tblW:w=2000", table_values)
+
+    def test_table_metadata_is_hidden_when_format_compare_disabled(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "table-meta-off-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                compare_formatting=False,
+                paras_before=[
+                    ParagraphData(text="[TABLE_MARKER]"),
+                    ParagraphData(
+                        text="표 1 서식",
+                        source_kind="table-meta",
+                        source_identifier="1",
+                        extra_meta=("tblW:w=1000",),
+                    ),
+                ],
+                paras_after=[
+                    ParagraphData(text="[TABLE_MARKER]"),
+                    ParagraphData(
+                        text="표 1 서식",
+                        source_kind="table-meta",
+                        source_identifier="1",
+                        extra_meta=("tblW:w=2000",),
+                    ),
+                ],
+                flags_b=[True, False],
+                flags_a=[True, False],
+                tables_before=[[["A"]]],
+                tables_after=[[["A"]]],
+            )
+
+            strings = extract_shared_strings(xlsx_path)
+            self.assertNotIn("표 1 서식", strings)
+            self.assertNotIn("표 서식 변경", strings)
+
+    def test_section_metadata_is_hidden_when_format_compare_disabled(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "section-off-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                compare_formatting=False,
+                paras_before=[
+                    ParagraphData(
+                        text="구역 1 설정",
+                        source_kind="section",
+                        source_identifier="1",
+                        extra_meta=("cols:space=425",),
+                    ),
+                ],
+                paras_after=[
+                    ParagraphData(
+                        text="구역 1 설정",
+                        source_kind="section",
+                        source_identifier="1",
+                        extra_meta=("cols:space=720",),
+                    ),
+                ],
+                flags_b=[False],
+                flags_a=[False],
+                tables_before=[],
+                tables_after=[],
+            )
+
+            strings = extract_shared_strings(xlsx_path)
+            self.assertNotIn("구역 1", strings)
+            self.assertNotIn("구역 1 설정", strings)
+
     def test_format_only_paragraph_changes_are_marked_in_main_sheet(self):
         service = ExcelReportService(extractor=None)
 
@@ -311,6 +424,7 @@ class ExcelReportPipelineTests(unittest.TestCase):
             service.generate_from_extracted_data(
                 excel_save_path=str(xlsx_path),
                 log_callback=None,
+                compare_formatting=True,
                 paras_before=[
                     ParagraphData(
                         text="구역 1 설정",

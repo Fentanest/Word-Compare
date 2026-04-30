@@ -21,6 +21,9 @@ class ExcelReportInput:
     flags_a: list[bool] | None = None
     tables_before: list[list[list[TableCellValue]]] | None = None
     tables_after: list[list[list[TableCellValue]]] | None = None
+    excluded_source_kinds: tuple[str, ...] = ()
+    table_metadata_before: dict[int, ParagraphData] | None = None
+    table_metadata_after: dict[int, ParagraphData] | None = None
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,8 @@ class TableDiffPlan:
     after_table: list[list[TableCellValue]]
     row_opcodes: list[Opcode]
     col_opcodes: list[Opcode]
+    before_metadata: ParagraphData | None = None
+    after_metadata: ParagraphData | None = None
 
 
 @dataclass(frozen=True)

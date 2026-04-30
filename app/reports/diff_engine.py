@@ -14,13 +14,16 @@ def _run_comparison_task(args):
 class ExcelDiffEngine:
     def build_diff_plan(self, report_input: ExcelReportInput) -> ExcelDiffPlan:
         compare_formatting = report_input.compare_formatting
+        excluded_source_kinds = set(report_input.excluded_source_kinds or ())
         filtered_paras_before, original_indices_before = self._filter_paragraphs(
             report_input.paras_before,
             report_input.flags_b,
+            excluded_source_kinds,
         )
         filtered_paras_after, original_indices_after = self._filter_paragraphs(
             report_input.paras_after,
             report_input.flags_a,
+            excluded_source_kinds,
         )
 
         tables_before = report_input.tables_before or []
@@ -60,6 +63,8 @@ class ExcelDiffEngine:
                     after_table=after_table,
                     row_opcodes=all_results[1 + plan_index * 2],
                     col_opcodes=all_results[2 + plan_index * 2],
+                    before_metadata=self._resolve_table_metadata(report_input.table_metadata_before, before_index),
+                    after_metadata=self._resolve_table_metadata(report_input.table_metadata_after, after_index),
                 )
             )
 
@@ -81,19 +86,35 @@ class ExcelDiffEngine:
             return [_run_comparison_task(task) for task in tasks]
 
     @staticmethod
-    def _filter_paragraphs(paragraphs, flags):
+    def _filter_paragraphs(paragraphs, flags, excluded_source_kinds):
         paragraphs = paragraphs or []
         if not flags:
-            indices = list(range(len(paragraphs)))
-            return paragraphs, indices
+            filtered = []
+            indices = []
+            for index, paragraph in enumerate(paragraphs):
+                if isinstance(paragraph, ParagraphData) and paragraph.source_kind in excluded_source_kinds:
+                    continue
+                filtered.append(paragraph)
+                indices.append(index)
+            return filtered, indices
 
         filtered = []
         indices = []
         for index, paragraph in enumerate(paragraphs):
+            if flags[index]:
+                continue
+            if isinstance(paragraph, ParagraphData) and paragraph.source_kind in excluded_source_kinds:
+                continue
             if not flags[index]:
                 filtered.append(paragraph)
                 indices.append(index)
         return filtered, indices
+
+    @staticmethod
+    def _resolve_table_metadata(table_metadata, table_index):
+        if table_index is None or not table_metadata:
+            return None
+        return table_metadata.get(table_index)
 
     @staticmethod
     def _build_row_signatures(table, compare_formatting: bool):

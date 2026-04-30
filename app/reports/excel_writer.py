@@ -85,7 +85,9 @@ class ExcelReportWriter:
             worksheet = workbook.add_worksheet(sheet_name[:31])
 
             max_cols_before = max((len(row) for row in table_plan.before_table), default=0)
+            max_cols_after = max((len(row) for row in table_plan.after_table), default=0)
             before_width = max(1, max_cols_before)
+            after_width = max(1, max_cols_after)
             after_start_col = before_width + 1
 
             if table_plan.before_index is None:
@@ -101,10 +103,34 @@ class ExcelReportWriter:
             worksheet.write(0, 0, before_header, formats["header"])
             worksheet.write(0, after_start_col, after_header, formats["header"])
 
+            content_row = 1
             if table_plan.before_index is None:
-                worksheet.write(1, after_start_col, "이 표는 수정 후 문서에만 있습니다.", formats["note"])
+                worksheet.write(content_row, after_start_col, "이 표는 수정 후 문서에만 있습니다.", formats["note"])
+                content_row += 1
             elif table_plan.after_index is None:
-                worksheet.write(1, 0, "이 표는 수정 전 문서에만 있습니다.", formats["note"])
+                worksheet.write(content_row, 0, "이 표는 수정 전 문서에만 있습니다.", formats["note"])
+                content_row += 1
+
+            if report_input.compare_formatting and self._table_metadata_changed(table_plan):
+                self._write_table_metadata_block(
+                    worksheet,
+                    formats,
+                    content_row,
+                    0,
+                    before_width,
+                    table_plan.before_metadata,
+                )
+                self._write_table_metadata_block(
+                    worksheet,
+                    formats,
+                    content_row,
+                    after_start_col,
+                    after_width,
+                    table_plan.after_metadata,
+                )
+                content_row += 2
+
+            table_start_row = content_row + 1
 
             row_map_after_to_before, row_map_before_to_after = self._build_bidirectional_map(
                 table_plan.row_opcodes
@@ -133,7 +159,7 @@ class ExcelReportWriter:
                                 rich_before, _ = self._get_rich_diff(value_before, value_after, formats)
                                 if len(rich_before) >= 3:
                                     worksheet.write_rich_string(
-                                        row_index + 2,
+                                        row_index + table_start_row,
                                         col_index,
                                         *rich_before,
                                         formats["table_cell"],
@@ -143,7 +169,7 @@ class ExcelReportWriter:
                             pass
 
                     worksheet.write(
-                        row_index + 2,
+                        row_index + table_start_row,
                         col_index,
                         value_before,
                         formats["table_del"] if is_changed else formats["table_cell"],
@@ -169,7 +195,7 @@ class ExcelReportWriter:
                                 _, rich_after = self._get_rich_diff(value_before, value_after, formats)
                                 if len(rich_after) >= 3:
                                     worksheet.write_rich_string(
-                                        row_index + 2,
+                                        row_index + table_start_row,
                                         col_index + after_start_col,
                                         *rich_after,
                                         formats["table_cell"],
@@ -179,7 +205,7 @@ class ExcelReportWriter:
                             pass
 
                     worksheet.write(
-                        row_index + 2,
+                        row_index + table_start_row,
                         col_index + after_start_col,
                         value_after,
                         formats["table_ins"] if is_changed else formats["table_cell"],
@@ -201,6 +227,8 @@ class ExcelReportWriter:
             "loc": workbook.add_format({"align": "center", "valign": "vcenter", "text_wrap": True}),
             "marker": workbook.add_format({"align": "center", "valign": "vcenter"}),
             "note": workbook.add_format({"italic": True, "font_color": "#666666"}),
+            "meta_label": workbook.add_format({"bold": True, "font_color": "#555555", "bg_color": "#F4F4F4", "border": 1}),
+            "meta_text": workbook.add_format({"font_color": "#555555", "text_wrap": True, "border": 1, "valign": "top"}),
             "table_cell": workbook.add_format({"valign": "vcenter", "border": 1, "text_wrap": True}),
             "table_ins": workbook.add_format(
                 {"font_color": "red", "bold": True, "valign": "vcenter", "border": 1, "text_wrap": True}
@@ -349,3 +377,36 @@ class ExcelReportWriter:
         elif table_plan.after_index is None:
             suffix = " (수정 전만 있음)"
         return f"표 {table_plan.index + 1}{suffix}"
+
+    @staticmethod
+    def _table_metadata_changed(table_plan) -> bool:
+        before_tokens = tuple(getattr(table_plan.before_metadata, "extra_meta", ()) or ())
+        after_tokens = tuple(getattr(table_plan.after_metadata, "extra_meta", ()) or ())
+        return before_tokens != after_tokens
+
+    def _write_table_metadata_block(self, worksheet, formats, row, start_col, width, metadata) -> None:
+        self._write_table_block(worksheet, row, start_col, width, "표 서식 변경", formats["meta_label"])
+        self._write_table_block(
+            worksheet,
+            row + 1,
+            start_col,
+            width,
+            self._table_metadata_text(metadata),
+            formats["meta_text"],
+        )
+
+    @staticmethod
+    def _write_table_block(worksheet, row, start_col, width, value, cell_format) -> None:
+        if width > 1:
+            worksheet.merge_range(row, start_col, row, start_col + width - 1, value, cell_format)
+            return
+        worksheet.write(row, start_col, value, cell_format)
+
+    @staticmethod
+    def _table_metadata_text(metadata) -> str:
+        if metadata is None:
+            return "(없음)"
+        tokens = tuple(getattr(metadata, "extra_meta", ()) or ())
+        if not tokens:
+            return "(변경 토큰 없음)"
+        return "\n".join(tokens)

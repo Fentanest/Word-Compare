@@ -77,6 +77,12 @@ class ExcelReportService:
         paragraph_locations_after=None,
         compare_formatting: bool = False,
     ) -> None:
+        table_metadata_before = self._extract_table_metadata(paras_before)
+        table_metadata_after = self._extract_table_metadata(paras_after)
+        excluded_source_kinds = {"table-meta"}
+        if not compare_formatting:
+            excluded_source_kinds.add("section")
+
         if get_loc_cb is None and (paragraph_locations_before or paragraph_locations_after):
             def get_loc_cb(idx, is_before):
                 locations = paragraph_locations_before if is_before else paragraph_locations_after
@@ -95,6 +101,9 @@ class ExcelReportService:
             flags_a=flags_a,
             tables_before=tables_before,
             tables_after=tables_after,
+            excluded_source_kinds=tuple(sorted(excluded_source_kinds)),
+            table_metadata_before=table_metadata_before,
+            table_metadata_after=table_metadata_after,
         )
         self.generate_from_input(report_input)
 
@@ -115,3 +124,16 @@ class ExcelReportService:
     @staticmethod
     def _log_perf(log_callback, label: str, started_at: float) -> None:
         ExcelReportService._log(log_callback, f"{label}: {perf_counter() - started_at:.3f}초")
+
+    @staticmethod
+    def _extract_table_metadata(paragraphs):
+        metadata = {}
+        for paragraph in paragraphs or []:
+            if not getattr(paragraph, "source_kind", "") == "table-meta":
+                continue
+            try:
+                table_index = int(getattr(paragraph, "source_identifier", "")) - 1
+            except (TypeError, ValueError):
+                continue
+            metadata[table_index] = paragraph
+        return metadata

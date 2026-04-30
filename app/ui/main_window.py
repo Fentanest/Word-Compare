@@ -19,6 +19,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.setupUi(self)
         self.setWindowIcon(QIcon(resource_path("logo.png")))
         self.setWindowTitle(f"Word Compare Tool v{__version__}")
+        self._loading_settings = False
 
         self.settings_service = SettingsService()
         self.word_compare_service = WordCompareService()
@@ -45,7 +46,7 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         self.actionFormatCompare = QAction("서식 비교", self)
         self.actionFormatCompare.setCheckable(True)
         self.actionFormatCompare.setShortcut(QKeySequence("F3"))
-        self.actionFormatCompare.toggled.connect(lambda _: self.save_settings())
+        self.actionFormatCompare.toggled.connect(self._handle_format_compare_toggled)
         self.menuOption.insertAction(self.actionGithub, self.actionFormatCompare)
 
         version_action = QAction(f"Version: {__version__}", self)
@@ -60,11 +61,14 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
         list_view.setAcceptDrops(True)
 
     def load_settings(self) -> None:
+        self._loading_settings = True
         settings = self.settings_service.load()
         self.lineEditSavePath.setText(settings.save_path)
         self.textEditauthor.setPlainText(settings.author)
         self.checkBoxExcel.setChecked(settings.excel_checked)
         self.actionFormatCompare.setChecked(settings.format_compare_enabled)
+        self._loading_settings = False
+        self._log_format_compare_state()
 
     def save_settings(self) -> None:
         self.settings_service.save(
@@ -75,6 +79,15 @@ class WordCompareApp(QMainWindow, Ui_MainWindow):
                 format_compare_enabled=self.actionFormatCompare.isChecked(),
             )
         )
+
+    def _handle_format_compare_toggled(self, _checked: bool) -> None:
+        self.save_settings()
+        if not self._loading_settings:
+            self._log_format_compare_state()
+
+    def _log_format_compare_state(self) -> None:
+        enabled_text = "켜짐" if self.actionFormatCompare.isChecked() else "꺼짐"
+        self.log(f"서식 비교 : {enabled_text}")
 
     def closeEvent(self, event):
         self.save_settings()
