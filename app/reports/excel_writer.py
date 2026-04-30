@@ -15,7 +15,7 @@ class ExcelReportWriter:
         formats = self._build_formats(workbook)
 
         self._write_main_sheet(workbook, formats, report_input, diff_plan)
-        self._write_table_sheets(workbook, formats, diff_plan)
+        self._write_table_sheets(workbook, formats, report_input, diff_plan)
 
         workbook.close()
         self._log(report_input, f"-> 양방향 정밀 보고서 저장 완료: {report_input.excel_save_path}")
@@ -79,7 +79,7 @@ class ExcelReportWriter:
                 worksheet.write(excel_row, 3, "O" if style_changed else "", formats["marker"])
             excel_row += 1
 
-    def _write_table_sheets(self, workbook, formats, diff_plan: ExcelDiffPlan) -> None:
+    def _write_table_sheets(self, workbook, formats, report_input: ExcelReportInput, diff_plan: ExcelDiffPlan) -> None:
         for table_plan in diff_plan.tables:
             sheet_name = self._table_sheet_name(table_plan)
             worksheet = workbook.add_worksheet(sheet_name[:31])

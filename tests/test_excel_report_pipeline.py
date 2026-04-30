@@ -162,6 +162,27 @@ class ExcelReportPipelineTests(unittest.TestCase):
             self.assertIn("B", strings)
             self.assertIn("B2", strings)
 
+    def test_unchanged_table_cells_keep_neutral_style_on_both_sides(self):
+        service = ExcelReportService(extractor=None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xlsx_path = Path(temp_dir) / "table-unchanged-report.xlsx"
+            service.generate_from_extracted_data(
+                excel_save_path=str(xlsx_path),
+                log_callback=None,
+                compare_formatting=False,
+                paras_before=[],
+                paras_after=[],
+                flags_b=[],
+                flags_a=[],
+                tables_before=[[["A", "B"]]],
+                tables_after=[[["A", "B"]]],
+            )
+
+            cells = extract_sheet_cells(xlsx_path, "표 1")
+            self.assertEqual(cells["A3"].get("s"), cells["D3"].get("s"))
+            self.assertEqual(cells["B3"].get("s"), cells["E3"].get("s"))
+
     def test_after_only_table_gets_its_own_sheet_label(self):
         service = ExcelReportService(extractor=None)
 
