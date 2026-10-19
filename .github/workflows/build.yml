@@ -99,6 +99,7 @@ jobs:
       with:
         name: WordCompare-Windows-${{ needs.metadata.outputs.version }}
         path: build/package/WordCompare-Windows-${{ needs.metadata.outputs.version }}.zip
+        retention-days: 1
 
   release:
     name: Create Release
